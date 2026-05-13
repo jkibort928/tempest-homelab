@@ -1,0 +1,14 @@
+# Shell-agnostic user aliases and functions
+if [ -d "$HOME"/.shrc.d ]; then
+    for rc in "$HOME"/.shrc.d/*; do
+        [ -f "$rc" ] && . "$rc"
+    done
+
+    for dir in "$HOME"/.shrc.d/*/; do
+        if [ -d "$dir" ]; then
+            for rc in "$dir"*.sh; do
+                [ -f "$rc" ] && . "$rc"
+            done
+        fi
+    done
+fi
