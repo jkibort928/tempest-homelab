@@ -1,7 +1,7 @@
 [Unit]
 Description=Immich Server
-After=immich-db.service immich-redis.service
-Requires=immich-db.service immich-redis.service
+After=immich-db.service immich-redis.service immich-ml.service
+Requires=immich-db.service immich-redis.service immich-ml.service
 
 [Container]
 ContainerName=immich-server
