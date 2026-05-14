@@ -13,8 +13,7 @@ Environment=VIKUNJA_DATABASE_TYPE=sqlite
 Environment=VIKUNJA_DATABASE_PATH=/app/vikunja/db/vikunja.db
 Environment=VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/files
 
-PodmanArgs=--cpus=0.5 --memory=512m
-Memory=512M
+Memory=128M
 
 Volume=/home/spoob/srv/@vikunja/db:/app/vikunja/db:Z
 Volume=/home/spoob/srv/@vikunja/files:/app/vikunja/files:Z
@@ -25,6 +24,7 @@ PublishPort=3456:3456
 WantedBy=default.target
 
 [Service]
+CPUShares=512
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60

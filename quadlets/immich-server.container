@@ -7,18 +7,17 @@ Requires=immich-db.service immich-redis.service immich-ml.service
 ContainerName=immich-server
 Image=ghcr.io/immich-app/immich-server:release
 
-PodmanArgs=--cpus=1 --memory=1.5g
-Memory=1.5G
-
 EnvironmentFile=%h/.config/containers/systemd/immich.secrets
 Environment=DB_HOSTNAME=immich-db
 Environment=DB_USERNAME=immich
-Environment=DB_PASSWORD=IMMICH_PASSWORD
 Environment=DB_DATABASE_NAME=immich
 Environment=REDIS_HOSTNAME=immich-redis
 Environment=IMMICH_MACHINE_LEARNING_URL=http://immich-ml:3003
 Environment=IMMICH_EXTERNAL_DOMAIN=https://photos.tail837b46.ts.net
 Environment=IMMICH_HOST=0.0.0.0
+
+Memory=2G
+Environment=NODE_OPTIONS="--max-old-space-size=1500"
 
 # Render devices
 AddDevice=/dev/dri:/dev/dri
@@ -33,6 +32,7 @@ PublishPort=2283:2283
 WantedBy=default.target
 
 [Service]
+CPUShares=1024
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60

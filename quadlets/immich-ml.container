@@ -13,13 +13,13 @@ Annotation=run.oci.keep_groups=true
 Volume=/home/spoob/srv/@immich/model-cache:/cache:Z
 Network=immich-internal.network
 
-PodmanArgs=--cpus=1 --cpu-shares=512 --memory=3g
 Memory=3G
 
 [Install]
 WantedBy=default.target
 
 [Service]
+CPUShares=512
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
