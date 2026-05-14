@@ -1,6 +1,0 @@
-[Unit]
-Description=Immich Stack Target
-Wants=immich-server.service immich-db.service immich-redis.service immich-ml.service
-
-[Install]
-WantedBy=default.target
