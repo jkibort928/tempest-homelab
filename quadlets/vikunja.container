@@ -1,0 +1,25 @@
+[Unit]
+Description=Vikunja Task Manager
+After=network-online.target
+
+[Container]
+Image=docker.io/vikunja/vikunja:latest
+# Bind to all interfaces for Tailscale access
+Environment=VIKUNJA_SERVICE_INTERFACE=:3456
+Environment=VIKUNJA_SERVICE_PUBLICURL=https://tasks.tail837b46.ts.net/
+Environment=VIKUNJA_SERVICE_FORWARDED_PROXIES=127.0.0.1,100.64.0.0/10
+Environment=VIKUNJA_SERVICE_ENABLEREGISTRATION=false
+Environment=VIKUNJA_DATABASE_TYPE=sqlite
+Environment=VIKUNJA_DATABASE_PATH=/app/vikunja/db/vikunja.db
+Environment=VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/files
+
+PodmanArgs=--cpus=0.5 --memory=512m
+Memory=512M
+
+Volume=/home/spoob/srv/@vikunja/db:/app/vikunja/db:Z
+Volume=/home/spoob/srv/@vikunja/files:/app/vikunja/files:Z
+
+PublishPort=3456:3456
+
+[Install]
+WantedBy=default.target
