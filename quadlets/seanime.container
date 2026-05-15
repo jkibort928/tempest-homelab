@@ -3,9 +3,10 @@ Description=Seanime Server
 
 [Container]
 ContainerName=seanime-server
-Image=ghcr.io/5rahim/seanime:latest
+Image=docker.io/umagistr/seanime:latest-hwaccel
 
 Environment=TZ=America/Los_Angeles
+Environment=SEANIME_SERVER_HOST=0.0.0.0
 
 Memory=1G
 
@@ -14,9 +15,11 @@ AddDevice=/dev/dri:/dev/dri
 # Ensures container sees the 'video' and 'render' groups
 Annotation=run.oci.keep_groups=true
 
-Volume=/home/spoob/srv/@seanime:/app/data:Z
+Volume=/home/spoob/srv/@seanime:/home/seanime/.config/Seanime:Z
 Volume=/home/spoob/srv/@anime:/mnt/media:Z
-PublishPort=4321:4321
+PublishPort=43211:43211
+
+UserNS=keep-id
 
 [Install]
 WantedBy=default.target
