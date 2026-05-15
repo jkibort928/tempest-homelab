@@ -6,7 +6,6 @@ After=network-online.target
 ContainerName=immich-db
 Image=docker.io/tensorchord/pgvecto-rs:pg14-v0.2.1
 
-PodmanArgs=--cpus=0.5 --memory=1g
 Memory=1G
 
 EnvironmentFile=%h/.config/containers/systemd/immich.secrets
@@ -19,6 +18,7 @@ Network=immich-internal.network
 WantedBy=default.target
 
 [Service]
+CPUShares=1024
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60

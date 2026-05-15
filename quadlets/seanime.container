@@ -1,0 +1,29 @@
+[Unit]
+Description=Seanime Server
+
+[Container]
+ContainerName=seanime-server
+Image=ghcr.io/5rahim/seanime:latest
+
+Environment=TZ=America/Los_Angeles
+
+Memory=1G
+
+# Render devices
+AddDevice=/dev/dri:/dev/dri
+# Ensures container sees the 'video' and 'render' groups
+Annotation=run.oci.keep_groups=true
+
+Volume=/home/spoob/srv/@seanime:/app/data:Z
+Volume=/home/spoob/srv/@anime:/mnt/media:Z
+PublishPort=4321:4321
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUShares=1024
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5

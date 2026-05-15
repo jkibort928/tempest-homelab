@@ -6,7 +6,6 @@ After=network-online.target
 ContainerName=immich-redis
 Image=docker.io/library/redis:7-alpine
 
-PodmanArgs=--cpus=0.25 --memory=256m
 Memory=256M
 
 Network=immich-internal.network
