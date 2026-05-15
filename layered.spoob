@@ -1,0 +1,28 @@
+/*
+    Optionals Legend:
+        '*#' = prospective   (useful but unneeded atm, install when needed)
+        '?#' = optional      (probably don't need this)
+        '!#' = unneeded      (don't need this)
+*/
+
+<filesystem>
+    btrfs-progs
+    ?#compsize # compression size report util
+</filesystem>
+
+<tools>
+    btop
+    
+    <hardware>
+        intel-gpu-tools 
+        libva-utils
+    </hardware>
+    
+</tools>
+
+<net>
+    nss-mdns 
+    tailscale
+    ethtool
+    avahi
+</net>
