@@ -31,4 +31,5 @@
     nss-mdns
     ethtool
     avahi
+    tailscale
 </net>
