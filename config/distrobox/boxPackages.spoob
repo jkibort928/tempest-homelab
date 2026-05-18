@@ -33,5 +33,7 @@
 <tools>
     btop
     fzf
+    ncdu
     tmux
+    ?# sqlite # needed it once
 </tools>
