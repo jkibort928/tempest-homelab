@@ -35,5 +35,6 @@
     fzf
     ncdu
     tmux
-    ?# sqlite # needed it once
+    !# sqlite # needed it once
+    ?# stress-ng # thermal testing
 </tools>
