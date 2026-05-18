@@ -1,1 +1,1 @@
-Copy the profile folder into /etc/tuned/profiles
+Copy the profile folder into `/etc/tuned/profiles`
