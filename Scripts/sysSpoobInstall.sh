@@ -1,1 +1,1 @@
-sudo rpm-ostree install $(spoober ~/layered.spoob)
+sudo rpm-ostree install --idempotent $(spoober ~/layered.spoob)

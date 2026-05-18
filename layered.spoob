@@ -5,9 +5,6 @@
         '!#' = unneeded      (don't need this)
 */
 
-# FLAGS
---idempotent
-
 <filesystem>
     btrfs-progs
     ?#compsize # compression size report util
