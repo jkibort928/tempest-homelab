@@ -1,0 +1,26 @@
+[Unit]
+Description=Sonarr Anime Manager
+After=network-online.target media-prowlarr.service media-rdtclient.service
+Wants=media-prowlarr.service media-rdtclient.service
+
+[Container]
+ContainerName=sonarr
+Image=lscr.io/linuxserver/sonarr:latest
+Memory=512M
+
+Environment=PUID=0
+Environment=PGID=0
+
+# Both /config and /data. Sonarr needs to see /data/downloads and /data/media
+Volume=%h/srv/@media/config/sonarr:/config:Z
+Volume=%h/srv/@media/data:/data:z
+Network=media-internal.network
+PublishPort=8989:8989
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUShares=512
+Restart=on-failure
+RestartSec=5

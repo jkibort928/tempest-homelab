@@ -1,0 +1,24 @@
+[Unit]
+Description=Recyclarr Trash Guides Sync
+After=network-online.target media-sonarr.service
+Wants=media-sonarr.service
+
+[Container]
+ContainerName=recyclarr
+Image=ghcr.io/recyclarr/recyclarr:latest
+UserNS=keep-id
+Memory=128M
+
+Volume=%h/srv/@media/config/recyclarr:/config:Z
+Network=media-internal.network
+
+# Recyclarr runs as a cron job inside the container by default
+Environment=CRON_SCHEDULE="@daily"
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUShares=128
+Restart=on-failure
+RestartSec=5

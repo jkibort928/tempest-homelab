@@ -1,0 +1,24 @@
+[Unit]
+Description=RDTClient TorBox Bridge
+After=network-online.target
+
+[Container]
+ContainerName=rdtclient
+Image=docker.io/rogerfar/rdtclient:latest
+Memory=512M
+
+Environment=PUID=0
+Environment=PGID=0
+
+Volume=%h/srv/@media/config/rdtclient:/data/db:Z
+Volume=%h/srv/@media/data/downloads:/data/downloads:z
+Network=media-internal.network
+PublishPort=6500:6500
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUShares=512
+Restart=on-failure
+RestartSec=5

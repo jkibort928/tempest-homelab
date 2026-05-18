@@ -1,0 +1,23 @@
+[Unit]
+Description=Prowlarr Indexer
+After=network-online.target
+
+[Container]
+ContainerName=prowlarr
+Image=lscr.io/linuxserver/prowlarr:latest
+Memory=256M
+
+Environment=PUID=0
+Environment=PGID=0
+
+Volume=%h/srv/@media/config/prowlarr:/config:Z
+Network=media-internal.network
+PublishPort=9696:9696
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUShares=256
+Restart=on-failure
+RestartSec=5
