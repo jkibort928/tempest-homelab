@@ -1,6 +1,8 @@
 [Unit]
 Description=Immich Postgres Database
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=immich-db
@@ -18,8 +20,6 @@ Network=immich-internal.network
 WantedBy=default.target
 
 [Service]
-CPUShares=1024
+CPUWeight=500
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5

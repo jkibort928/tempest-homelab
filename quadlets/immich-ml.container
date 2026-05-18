@@ -1,6 +1,8 @@
 [Unit]
 Description=Immich Machine Learning
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=immich-ml
@@ -19,8 +21,6 @@ Memory=3G
 WantedBy=default.target
 
 [Service]
-CPUShares=512
+CPUWeight=20
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5

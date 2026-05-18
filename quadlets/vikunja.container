@@ -1,6 +1,8 @@
 [Unit]
 Description=Vikunja Task Manager
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 Image=docker.io/vikunja/vikunja:latest
@@ -24,8 +26,6 @@ PublishPort=3456:3456
 WantedBy=default.target
 
 [Service]
-CPUShares=512
+CPUWeight=100
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5

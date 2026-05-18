@@ -2,6 +2,8 @@
 Description=Sonarr Anime Manager
 After=network-online.target media-prowlarr.service media-rdtclient.service
 Wants=media-prowlarr.service media-rdtclient.service
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=sonarr
@@ -21,6 +23,6 @@ PublishPort=8989:8989
 WantedBy=default.target
 
 [Service]
-CPUShares=512
+CPUWeight=50
 Restart=on-failure
 RestartSec=5

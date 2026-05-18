@@ -1,6 +1,8 @@
 [Unit]
 Description=RDTClient TorBox Bridge
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=rdtclient
@@ -19,6 +21,6 @@ PublishPort=6500:6500
 WantedBy=default.target
 
 [Service]
-CPUShares=512
+CPUWeight=20
 Restart=on-failure
 RestartSec=5

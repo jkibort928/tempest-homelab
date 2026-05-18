@@ -2,6 +2,8 @@
 Description=Recyclarr Trash Guides Sync
 After=network-online.target media-sonarr.service
 Wants=media-sonarr.service
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=recyclarr
@@ -20,6 +22,6 @@ Environment=CRON_SCHEDULE="@daily"
 WantedBy=default.target
 
 [Service]
-CPUShares=128
+CPUWeight=100
 Restart=on-failure
 RestartSec=5

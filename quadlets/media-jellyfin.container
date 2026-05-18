@@ -1,6 +1,8 @@
 [Unit]
 Description=Jellyfin Media Server
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=jellyfin
@@ -27,6 +29,6 @@ PublishPort=8096:8096
 WantedBy=default.target
 
 [Service]
-CPUShares=1024
+CPUWeight=100
 Restart=on-failure
 RestartSec=5

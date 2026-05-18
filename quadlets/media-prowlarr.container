@@ -1,6 +1,8 @@
 [Unit]
 Description=Prowlarr Indexer
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=prowlarr
@@ -18,6 +20,6 @@ PublishPort=9696:9696
 WantedBy=default.target
 
 [Service]
-CPUShares=256
+CPUWeight=50
 Restart=on-failure
 RestartSec=5

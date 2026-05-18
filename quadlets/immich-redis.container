@@ -1,6 +1,8 @@
 [Unit]
 Description=Immich Redis Cache
 After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=immich-redis
@@ -14,7 +16,6 @@ Network=immich-internal.network
 WantedBy=default.target
 
 [Service]
+CPUWeight=500
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5

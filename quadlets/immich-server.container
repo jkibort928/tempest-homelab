@@ -2,6 +2,8 @@
 Description=Immich Server
 After=immich-db.service immich-redis.service immich-ml.service
 Requires=immich-db.service immich-redis.service immich-ml.service
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Container]
 ContainerName=immich-server
@@ -32,8 +34,6 @@ PublishPort=2283:2283
 WantedBy=default.target
 
 [Service]
-CPUShares=1024
+CPUWeight=100
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
