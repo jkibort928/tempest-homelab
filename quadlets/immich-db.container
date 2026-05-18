@@ -8,10 +8,10 @@ Image=docker.io/tensorchord/pgvecto-rs:pg14-v0.2.1
 
 Memory=1G
 
-EnvironmentFile=%h/.config/containers/systemd/immich.secrets
+EnvironmentFile=%E/containers/systemd/immich.secrets
 Environment=POSTGRES_USER=immich
 Environment=POSTGRES_DB=immich
-Volume=/home/spoob/srv/@immich/postgres:/var/lib/postgresql/data:Z
+Volume=%h/srv/@immich/postgres:/var/lib/postgresql/data:Z
 Network=immich-internal.network
 
 [Install]

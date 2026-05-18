@@ -7,7 +7,7 @@ Requires=immich-db.service immich-redis.service immich-ml.service
 ContainerName=immich-server
 Image=ghcr.io/immich-app/immich-server:release
 
-EnvironmentFile=%h/.config/containers/systemd/immich.secrets
+EnvironmentFile=%E/containers/systemd/immich.secrets
 Environment=DB_HOSTNAME=immich-db
 Environment=DB_USERNAME=immich
 Environment=DB_DATABASE_NAME=immich
