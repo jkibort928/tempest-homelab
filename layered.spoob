@@ -5,6 +5,9 @@
         '!#' = unneeded      (don't need this)
 */
 
+# FLAGS
+--idempotent
+
 <filesystem>
     btrfs-progs
     ?#compsize # compression size report util
@@ -12,8 +15,13 @@
 
 <tools>
     btop
+
+    tuned # power management
     
     <hardware>
+        <fusion>
+            intel-media-driver
+        </fusion>
         intel-gpu-tools 
         libva-utils
     </hardware>
