@@ -14,6 +14,8 @@
     btop
 
     tuned # power management
+
+    distrobox
     
     <hardware>
         <fusion>
@@ -26,8 +28,7 @@
 </tools>
 
 <net>
-    nss-mdns 
-    tailscale
+    nss-mdns
     ethtool
     avahi
 </net>
