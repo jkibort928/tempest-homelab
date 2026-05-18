@@ -12,6 +12,8 @@ Memory=256M
 
 Network=immich-internal.network
 
+Volume=/etc/localtime:/etc/localtime:ro
+
 [Install]
 WantedBy=default.target
 

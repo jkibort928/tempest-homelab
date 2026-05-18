@@ -9,7 +9,6 @@ ContainerName=jellyfin
 Image=docker.io/jellyfin/jellyfin:latest
 UserNS=keep-id
 
-# Keep memory constrained; Jellyfin can get hungry during library scans
 Memory=1G
 
 # Render devices for Intel QuickSync hardware transcoding
@@ -21,9 +20,9 @@ Volume=%h/srv/@media/config/jellyfin:/config:Z
 Volume=%h/srv/@media/data:/data:z
 Network=media-internal.network
 
-# Only expose over Tailscale by binding to the Tailscale IP, or leave 
-# as 0.0.0.0 if firewalld handles your Tailscale zone restriction.
 PublishPort=8096:8096
+
+Volume=/etc/localtime:/etc/localtime:ro
 
 [Install]
 WantedBy=default.target

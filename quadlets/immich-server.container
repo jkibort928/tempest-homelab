@@ -30,6 +30,8 @@ Volume=/home/spoob/srv/@immich/photos:/usr/src/app/upload:Z
 Network=immich-internal.network
 PublishPort=2283:2283
 
+Volume=/etc/localtime:/etc/localtime:ro
+
 [Install]
 WantedBy=default.target
 

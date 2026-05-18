@@ -16,6 +16,8 @@ Environment=POSTGRES_DB=immich
 Volume=%h/srv/@immich/postgres:/var/lib/postgresql/data:Z
 Network=immich-internal.network
 
+Volume=/etc/localtime:/etc/localtime:ro
+
 [Install]
 WantedBy=default.target
 

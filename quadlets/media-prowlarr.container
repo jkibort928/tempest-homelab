@@ -16,6 +16,8 @@ Volume=%h/srv/@media/config/prowlarr:/config:Z
 Network=media-internal.network
 PublishPort=9696:9696
 
+Volume=/etc/localtime:/etc/localtime:ro
+
 [Install]
 WantedBy=default.target
 

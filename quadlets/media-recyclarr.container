@@ -11,12 +11,14 @@ Image=ghcr.io/recyclarr/recyclarr:latest
 UserNS=keep-id
 Memory=128M
 
+# Recyclarr runs as a cron job inside the container by default
+Environment=CRON_SCHEDULE="@daily"
+
 Volume=%h/srv/@media/config/recyclarr:/config:Z
 Volume=%h/dev/personal/tempest-homelab/quadlets/configs/recyclarr:/config/configs:Z
 Network=media-internal.network
 
-# Recyclarr runs as a cron job inside the container by default
-Environment=CRON_SCHEDULE="@daily"
+Volume=/etc/localtime:/etc/localtime:ro
 
 [Install]
 WantedBy=default.target

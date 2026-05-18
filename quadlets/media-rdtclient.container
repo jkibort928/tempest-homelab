@@ -17,6 +17,8 @@ Volume=%h/srv/@media/data/downloads:/data/downloads:z
 Network=media-internal.network
 PublishPort=6500:6500
 
+Volume=/etc/localtime:/etc/localtime:ro
+
 [Install]
 WantedBy=default.target
 

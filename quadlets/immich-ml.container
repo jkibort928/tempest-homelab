@@ -12,10 +12,12 @@ Environment=IMMICH_ML_DEVICE=openvino:GPU
 AddDevice=/dev/dri:/dev/dri
 Annotation=run.oci.keep_groups=true
 
+Memory=3G
+
 Volume=%h/srv/@immich/model-cache:/cache:Z
 Network=immich-internal.network
 
-Memory=3G
+Volume=/etc/localtime:/etc/localtime:ro
 
 [Install]
 WantedBy=default.target
