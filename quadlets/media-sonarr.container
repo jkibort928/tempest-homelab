@@ -8,6 +8,7 @@ StartLimitIntervalSec=60
 [Container]
 ContainerName=sonarr
 Image=lscr.io/linuxserver/sonarr:latest
+AutoUpdate=registry
 Memory=512M
 
 Environment=PUID=0

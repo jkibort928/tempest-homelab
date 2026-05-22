@@ -8,6 +8,7 @@ StartLimitIntervalSec=60
 [Container]
 ContainerName=recyclarr
 Image=ghcr.io/recyclarr/recyclarr:latest
+AutoUpdate=registry
 UserNS=keep-id
 Memory=128M
 
