@@ -18,12 +18,16 @@ sonarr:
       - trash_id: 20e0fc959f1f1704bed501f23bdae76f  # [Anime] Remux-1080p
         name: "[Anime] Watching - 1080p"
         reset_unmatched_scores:
-          enabled: true
+            enabled: true
+            except:
+          -  "Legacy x264 10bit"
 
       - trash_id: 20e0fc959f1f1704bed501f23bdae76f  # [Anime] Remux-1080p
         name: "[Anime] Planning - 1080p"
         reset_unmatched_scores:
-          enabled: true
+            enabled: true
+            except:
+          -  "Legacy x264 10bit"
 
     custom_formats:
       - trash_ids:
