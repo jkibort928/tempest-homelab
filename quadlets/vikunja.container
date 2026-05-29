@@ -7,6 +7,7 @@ StartLimitIntervalSec=60
 [Container]
 Image=docker.io/vikunja/vikunja:latest
 AutoUpdate=registry
+UserNS=keep-id
 
 # Bind to all interfaces for Tailscale access
 Environment=VIKUNJA_SERVICE_INTERFACE=:3456

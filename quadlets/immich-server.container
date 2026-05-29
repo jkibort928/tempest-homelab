@@ -9,6 +9,8 @@ StartLimitIntervalSec=60
 ContainerName=immich-server
 Image=ghcr.io/immich-app/immich-server:release
 
+UserNS=keep-id
+
 EnvironmentFile=%E/containers/systemd/immich.secrets
 Environment=DB_HOSTNAME=immich-db
 Environment=DB_USERNAME=immich

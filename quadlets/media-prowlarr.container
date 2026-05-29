@@ -8,10 +8,11 @@ StartLimitIntervalSec=60
 ContainerName=prowlarr
 Image=lscr.io/linuxserver/prowlarr:latest
 AutoUpdate=registry
-Memory=256M
 
 Environment=PUID=0
 Environment=PGID=0
+
+Memory=256M
 
 Volume=%h/srv/@media/config/prowlarr:/config:Z
 Network=media-internal.network

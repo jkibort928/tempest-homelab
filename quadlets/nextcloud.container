@@ -1,0 +1,32 @@
+[Unit]
+Description=Nextcloud (Mainly for Quillpad backend)
+After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Container]
+ContainerName=nextcloud
+Image=docker.io/library/nextcloud:latest
+AutoUpdate=registry
+
+UserNS=keep-id:uid=33,gid=33
+Sysctl=net.ipv4.ip_unprivileged_port_start=0
+
+Memory=1G
+
+Environment=OVERWRITEPROTOCOL=https
+Environment=TRUSTED_PROXIES=127.0.0.1 ::1
+
+Volume=%h/srv/@nextcloud/data:/var/www/html:Z
+
+PublishPort=8443:80
+
+Volume=/etc/localtime:/etc/localtime:ro
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUWeight=50
+Restart=on-failure
+RestartSec=5

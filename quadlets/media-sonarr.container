@@ -9,10 +9,11 @@ StartLimitIntervalSec=60
 ContainerName=sonarr
 Image=lscr.io/linuxserver/sonarr:latest
 AutoUpdate=registry
-Memory=512M
 
 Environment=PUID=0
 Environment=PGID=0
+
+Memory=512M
 
 # Both /config and /data. Sonarr needs to see /data/downloads and /data/media
 Volume=%h/srv/@media/config/sonarr:/config:Z

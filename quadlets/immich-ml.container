@@ -8,6 +8,8 @@ StartLimitIntervalSec=60
 ContainerName=immich-ml
 Image=ghcr.io/immich-app/immich-machine-learning:release-openvino
 
+UserNS=keep-id
+
 Environment=IMMICH_ML_DEVICE=openvino:GPU
 AddDevice=/dev/dri:/dev/dri
 Annotation=run.oci.keep_groups=true

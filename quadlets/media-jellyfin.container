@@ -8,7 +8,9 @@ StartLimitIntervalSec=60
 ContainerName=jellyfin
 Image=docker.io/jellyfin/jellyfin:latest
 AutoUpdate=registry
+
 UserNS=keep-id
+User=1000:1000
 
 Memory=1G
 

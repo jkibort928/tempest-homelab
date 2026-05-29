@@ -8,6 +8,8 @@ StartLimitIntervalSec=60
 ContainerName=immich-redis
 Image=docker.io/library/redis:7-alpine
 
+UserNS=keep-id:uid=999,gid=999
+
 Memory=256M
 
 Network=immich-internal.network

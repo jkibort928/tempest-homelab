@@ -8,6 +8,8 @@ StartLimitIntervalSec=60
 ContainerName=immich-db
 Image=docker.io/tensorchord/pgvecto-rs:pg14-v0.2.1
 
+UserNS=keep-id:uid=999,gid=999
+
 Memory=1G
 
 EnvironmentFile=%E/containers/systemd/immich.secrets

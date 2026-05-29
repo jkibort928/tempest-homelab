@@ -8,10 +8,11 @@ StartLimitIntervalSec=60
 ContainerName=rdtclient
 Image=docker.io/rogerfar/rdtclient:latest
 AutoUpdate=registry
-Memory=512M
 
 Environment=PUID=0
 Environment=PGID=0
+
+Memory=512M
 
 Volume=%h/srv/@media/config/rdtclient:/data/db:Z
 Volume=%h/srv/@media/data/downloads:/data/downloads:z
