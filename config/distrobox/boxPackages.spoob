@@ -1,4 +1,4 @@
-/*
+f/*
     Optionals Legend:
         '*#' = prospective   (useful but unneeded atm, install when needed)
         '?#' = optional      (probably don't need this)
@@ -17,6 +17,8 @@
 </essential>
 
 <deps>
+    ffmpeg
+
     <ghcup>
         gcc
         gcc-c++
