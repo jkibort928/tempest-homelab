@@ -12,6 +12,11 @@ BASE_DIR = os.path.expanduser("~/srv/@music/data")
 SPOTIFY_DIR = f"{BASE_DIR}/Mainstream"
 YOUTUBE_DIR = f"{BASE_DIR}/Exclusives"
 
+# --- THROTTLING & CHUNKING ---
+MAX_YT_DOWNLOADS = 50   # Max YouTube tracks to download per script execution
+YT_MIN_SLEEP = 5        # Minimum seconds to pause between YouTube downloads
+YT_MAX_SLEEP = 15       # Maximum seconds to pause (randomized to mimic a human)
+
 # Helper to execute system commands cleanly
 def run_command(cmd, silent=False):
     print(f"Running: {' '.join(cmd)}")
@@ -35,6 +40,7 @@ def sync_spotify():
         "spotdl", 
         "download", SPOTIFY_INBOX,
         "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"
+        "--threads", "1"  # Single-threaded to help avoid IP bans (kinda)
     ]
     run_command(cmd)
 
@@ -70,12 +76,19 @@ def sync_youtube():
         print("All YouTube Inbox tracks already exist on disk (matched by ID).")
         return
         
-    print(f"Found {len(missing_ids)} missing video(s). Initializing download...")
+    # Chunking logic
+    if len(missing_ids) > MAX_YT_DOWNLOADS:
+        print(f"Queue has {len(missing_ids)} missing tracks. Limiting to {MAX_YT_DOWNLOADS} for this run.")
+        missing_ids = missing_ids[:MAX_YT_DOWNLOADS]
+    else:
+        print(f"Found {len(missing_ids)} missing video(s). Initializing download...")
     
     # Download only the missing tracks
     for vid_id in missing_ids:
         cmd = [
             "yt-dlp",
+            "--min-sleep-interval", str(YT_MIN_SLEEP),  # Random delay lower bound
+            "--max-sleep-interval", str(YT_MAX_SLEEP),  # Random delay upper bound
             "-x", "--audio-format", "mp3",
             "-o", f"{YOUTUBE_DIR}/%(title)s [%(id)s].%(ext)s",
             f"https://www.youtube.com/watch?v={vid_id}"
