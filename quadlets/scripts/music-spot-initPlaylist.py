@@ -13,8 +13,21 @@ NAVIDROME_MOUNT = "/music"
 NAVI_SPOTIFY=f"{NAVIDROME_MOUNT}/Mainstream"
 
 def sanitize_filename(text):
-    # Mimics how spotdl does it
-    text = re.sub(r'[\\/*?:"<>|]', "", text)
+    """Mimics how spotdl cleans text to generate valid filenames."""
+    # spotdl converts double quotes to single quotes to preserve meaning
+    text = text.replace('"', "'")
+    
+    # spotdl maps other unsafe file system characters to dashes
+    text = text.replace(':', "-")
+    text = text.replace('/', "-")
+    text = text.replace('\\', "-")
+
+    # Remove any remaining characters that spotdl naturally strips
+    text = re.sub(r'[*?<>|]', "", text)
+    
+    # Clean up any accidental double spaces caused by replacements
+    text = re.sub(r'\s+', " ", text)
+    
     return text.strip()
 
 def fetch_metadata(url, temp_file):
