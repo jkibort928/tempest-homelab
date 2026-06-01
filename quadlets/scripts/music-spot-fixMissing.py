@@ -71,6 +71,7 @@ def process_missing_file(filepath):
         print(f"Finished [{index}/{total_tracks}]\n")
 
     print("--- All Queued Downloads Complete ---")
+    print("Re-run your playlist init script to regenerate the Navidrome .m3u map and update/remove the missing list.")
 
 if __name__ == "__main__":
     if shutil.which("spotdl") is None:

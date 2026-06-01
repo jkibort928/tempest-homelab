@@ -78,6 +78,14 @@ def build_playlist(name, url):
             miss.write(f"Format: Artist - Title|Spotify URL\n\n")
             for track in missing_tracks:
                 miss.write(f"{track}\n")
+        print(f"Warning: {len(missing_tracks)} tracks are missing from your drive.")
+        print(f"Check '{missing_path}' for the list.")
+    else:
+        # 100% complete! Clean up the old report if it exists from a previous run
+        if os.path.exists(missing_path):
+            os.remove(missing_path)
+            print(f"Cleaned up old missing tracks report: {os.path.basename(missing_path)}")
+        print("All tracks found! Zero missing tracks detected.")
 
     # Cleanup
     if os.path.exists(temp_json):
