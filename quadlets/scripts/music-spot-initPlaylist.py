@@ -4,6 +4,7 @@ import subprocess
 import argparse
 import json
 import re
+from spotdl.utils.formatter import sanitize_string
 
 # --- CONFIGURATION ---
 BASE_DIR = os.path.expanduser("~/srv/@music/data")
@@ -11,24 +12,6 @@ PLAYLIST_DIR = f"{BASE_DIR}/Playlists"
 SPOTIFY_DIR = f"{BASE_DIR}/Mainstream"
 NAVIDROME_MOUNT = "/music"
 NAVI_SPOTIFY=f"{NAVIDROME_MOUNT}/Mainstream"
-
-def sanitize_filename(text):
-    """Mimics how spotdl cleans text to generate valid filenames."""
-    # spotdl converts double quotes to single quotes to preserve meaning
-    text = text.replace('"', "'")
-    
-    # spotdl maps other unsafe file system characters to dashes
-    text = text.replace(':', "-")
-    text = text.replace('/', "-")
-    text = text.replace('\\', "-")
-
-    # Remove any remaining characters that spotdl naturally strips
-    text = re.sub(r'[*?<>|]', "", text)
-    
-    # Clean up any accidental double spaces caused by replacements
-    text = re.sub(r'\s+', " ", text)
-    
-    return text.strip()
 
 def fetch_metadata(url, temp_file):
     print(f"Fetching playlist metadata from Spotify...")
@@ -65,8 +48,8 @@ def build_playlist(name, url):
 
     # Check local storage for each track
     for track in track_data:
-        artist = sanitize_filename(track.get('artist', 'Unknown'))
-        title = sanitize_filename(track.get('name', 'Unknown'))
+        artist = sanitize_string(track.get('artist', 'Unknown'))
+        title = sanitize_string(track.get('name', 'Unknown'))
         
         expected_filename = f"{artist} - {title}.mp3"
         
