@@ -3,6 +3,7 @@ import os
 import subprocess
 import re
 import shutil
+import argparse
 
 # --- CONFIGURATION ---
 SPOTIFY_INBOX = "https://open.spotify.com/playlist/38WMKTWNAwebnzPXnqYxQf?si=69885fd60d4e42fa"
@@ -39,8 +40,9 @@ def sync_spotify():
     cmd = [
         "spotdl", 
         "download", SPOTIFY_INBOX,
-        "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"
-        "--threads", "1"  # Single-threaded to help avoid IP bans (kinda)
+        "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+        "--archive", f"{SPOTIFY_DIR}/.spotdl_archive",
+        "--threads", "1"
     ]
     run_command(cmd)
 
@@ -54,6 +56,7 @@ def sync_youtube():
     print("Fetching YouTube Inbox playlist IDs...")
     get_ids_cmd = [
         "yt-dlp",
+        "--js-runtimes", "node",
         "--flat-playlist", "--get-id", YOUTUBE_INBOX
     ]
     result = run_command(get_ids_cmd, silent=True)
@@ -65,7 +68,7 @@ def sync_youtube():
     # Extract existing ids into a set
     existing_ids = set()
     for filename in existing_files:
-        match = re.search(r'\[([a-zA-Z0-9_-]{11})\]\.[^.]+$', filename)
+        match = re.search(r'\[([a-zA-Z0-9_-]{11})\]\.mp3$', filename)
         if match:
             existing_ids.add(match.group(1))
 
@@ -87,20 +90,31 @@ def sync_youtube():
     for vid_id in missing_ids:
         cmd = [
             "yt-dlp",
-            "--min-sleep-interval", str(YT_MIN_SLEEP),  # Random delay lower bound
-            "--max-sleep-interval", str(YT_MAX_SLEEP),  # Random delay upper bound
+            "--js-runtimes", "node",
+            "--min-sleep-interval", str(YT_MIN_SLEEP),
+            "--max-sleep-interval", str(YT_MAX_SLEEP),
             "-x", "--audio-format", "mp3",
+            "--embed-metadata",     # Injects Title and Artist tags
+            "--embed-thumbnail",    # Injects the video thumbnail as Cover Art
             "-o", f"{YOUTUBE_DIR}/%(title)s [%(id)s].%(ext)s",
             f"https://www.youtube.com/watch?v={vid_id}"
         ]
         run_command(cmd)
 
 if __name__ == "__main__":
-    for tool in ["spotdl", "yt-dlp"]:
+    # Set up CLI flags
+    parser = argparse.ArgumentParser(description="Sync music inboxes from Spotify and YouTube.")
+    parser.add_argument("--spotify", action="store_true", help="Sync only the Spotify inbox.")
+    parser.add_argument("--yt", action="store_true", help="Sync only the YouTube inbox.")
+    args = parser.parse_args()
+
+    run_all = not args.spotify and not args.yt
+
+    # Verify all system and virtual environment dependencies are in PATH
+    for tool in ["spotdl", "yt-dlp", "node"]:
         if shutil.which(tool) is None:
-            print(f"Error: '{tool}' not found in PATH.")
-            print("Did you forget to activate your virtual environment? (source .venv/bin/activate)")
-            print("(Ensure spotdl and yt-dlp are installed through pip in the venv too!)")
+            print(f"CRITICAL ERROR: Required dependency '{tool}' not found in PATH.")
+            print("Please ensure your virtual environment is active, has the right dependencies, and system runtimes are installed.")
             exit(1)
 
     for directory in [SPOTIFY_DIR, YOUTUBE_DIR]:
@@ -108,6 +122,10 @@ if __name__ == "__main__":
             print(f"Error: Directory does not exist: {directory}")
             exit(1)
     
-    sync_spotify()
-    sync_youtube()
+    if args.spotify or run_all:
+        sync_spotify()
+        
+    if args.yt or run_all:
+        sync_youtube()
+        
     print("--- Sync Complete ---")
