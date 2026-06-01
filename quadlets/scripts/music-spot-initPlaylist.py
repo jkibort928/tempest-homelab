@@ -30,7 +30,7 @@ def build_playlist(name, url):
 
     m3u_path = f"{PLAYLIST_DIR}/{name} [{playlist_id}].m3u"
     missing_path = f"{PLAYLIST_DIR}/missing_{name} [{playlist_id}].txt"
-    temp_json = f"{PLAYLIST_DIR}/temp.spotdl"
+    temp_json = f"{PLAYLIST_DIR}/temp_{playlist_id}.spotdl"
 
     fetch_metadata(url, temp_json)
 
