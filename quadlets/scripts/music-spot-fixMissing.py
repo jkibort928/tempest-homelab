@@ -48,29 +48,29 @@ def process_missing_file(filepath):
         download_queue.append((track_info, f"{yt_url}|{spot_url}"))
         print("Queued!\n")
 
-        # Phase 2: Process the collected queue sequentially
-        if not download_queue:
-            print("No tracks were added to the download queue.")
-            return
-    
-        total_tracks = len(download_queue)
-        print(f"--- Input Collection Complete ---")
-        print(f"Starting sequential download of {total_tracks} tracks.")
-    
-        for index, (track_info, query) in enumerate(download_queue, 1):
-            print(f"[{index}/{total_tracks}] Downloading: {track_info}")
-            
-            cmd = [
-                "spotdl", 
-                "download", query,
-                "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"
-            ]
-            
-            # Run the download blocking task
-            subprocess.run(cmd)
-            print(f"Finished [{index}/{total_tracks}]\n")
-    
-        print("--- All Queued Downloads Complete ---")
+    # Phase 2: Process the collected queue sequentially
+    if not download_queue:
+        print("No tracks were added to the download queue.")
+        return
+
+    total_tracks = len(download_queue)
+    print(f"--- Input Collection Complete ---")
+    print(f"Starting sequential download of {total_tracks} tracks.")
+
+    for index, (track_info, query) in enumerate(download_queue, 1):
+        print(f"[{index}/{total_tracks}] Downloading: {track_info}")
+        
+        cmd = [
+            "spotdl", 
+            "download", query,
+            "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"
+        ]
+        
+        # Run the download blocking task
+        subprocess.run(cmd)
+        print(f"Finished [{index}/{total_tracks}]\n")
+
+    print("--- All Queued Downloads Complete ---")
 
 if __name__ == "__main__":
     if shutil.which("spotdl") is None:
