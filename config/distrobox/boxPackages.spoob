@@ -17,7 +17,10 @@ f/*
 </essential>
 
 <deps>
-    ffmpeg
+    <yt-dlp>
+        ffmpeg
+        nodejs
+    <yt-dlp>
 
     <ghcup>
         gcc
