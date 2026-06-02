@@ -2,12 +2,9 @@
 import os
 import subprocess
 import argparse
+import json
 import re
-import logging
 from spotdl.utils.formatter import sanitize_string
-from spotdl.types.playlist import Playlist
-from spotdl.utils.spotify import SpotifyClient
-from dotenv import load_dotenv
 
 # --- CONFIGURATION ---
 BASE_DIR = os.path.expanduser("~/srv/@music/data")
@@ -15,31 +12,30 @@ PLAYLIST_DIR = f"{BASE_DIR}/Playlists"
 SPOTIFY_DIR = f"{BASE_DIR}/Mainstream"
 NAVIDROME_MOUNT = "/music"
 NAVI_SPOTIFY=f"{NAVIDROME_MOUNT}/Mainstream"
-SPOTIFY_ENV_FILENAME="spotify.env"
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(script_dir, SPOTIFY_ENV_FILENAME)
-load_dotenv(dotenv_path=env_path)
+def fetch_metadata(url, temp_file):
+    print(f"Fetching playlist metadata from Spotify...")
+    cmd = ["spotdl", "save", url, "--save-file", temp_file]
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        print(f"Error fetching metadata. Command exited with status {result.returncode}")
+        exit(1)
 
-def audit_local_storage(songs):
-    """Checks local disk and returns found tracks, missing URLs, and report lines."""
+def check_local_files(track_data):
     found = []
-    missing_links = []
-    report_lines = []
-    
-    for song in songs:
-        artist = sanitize_string(song.artist)
-        title = sanitize_string(song.name)
+    missing = []
+    for track in track_data:
+        artist = sanitize_string(track.get('artist', 'Unknown'))
+        title = sanitize_string(track.get('name', 'Unknown'))
         expected_filename = f"{artist} - {title}.mp3"
-        full_file_path = os.path.join(SPOTIFY_DIR, expected_filename)
-
-        if os.path.exists(full_file_path):
+        fullFilePath = os.path.join(SPOTIFY_DIR, expected_filename)
+        
+        if os.path.exists(fullFilePath):
             found.append(f"{NAVI_SPOTIFY}/{expected_filename}")
         else:
-            missing_links.append(song.url)
-            report_lines.append(f"{artist} - {title}|{song.url}")
-            
-    return found, missing_links, report_lines
+            track_url = track.get('url', 'UNKNOWN_URL')
+            missing.append(f"{artist} - {title}|{track_url}")
+    return found, missing
 
 def build_playlist(name, url):
     os.makedirs(PLAYLIST_DIR, exist_ok=True)
@@ -50,96 +46,77 @@ def build_playlist(name, url):
 
     m3u_path = f"{PLAYLIST_DIR}/{name} [{playlist_id}].m3u"
     missing_path = f"{PLAYLIST_DIR}/missing_{name} [{playlist_id}].txt"
-
-    print(f"Initializing Official Spotify API Client...")
-
-    # Intercept spotDL's internal logs and print them to the terminal
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S"
-    )
-    
-    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
-    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        print(f"Error: SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET not found in {env_path}")
-        exit(1)
-
-    SpotifyClient.init(
-        client_id=client_id,
-        client_secret=client_secret,
-        user_auth=True,
-        headless=True
-    )
+    temp_json = f"{PLAYLIST_DIR}/temp_{playlist_id}.spotdl"
 
     try:
-        print(f"Fetching playlist metadata...")
-        playlist = Playlist.from_url(url)
-        songs = playlist.songs
-        
-        # Guard against Spotify returning an empty track list for unowned public lists
-        if not songs:
-            print("\nError: Playlist returned 0 tracks.")
-            print("Reminder: If this is a public playlist you don't own, Spotify's API lockdown requires you to copy/clone the tracks into a playlist on your own account.")
-            exit(1)
+        fetch_metadata(url, temp_json)
+
+        with open(temp_json, 'r') as f:
+            try:
+                track_data = json.load(f)
+            except json.JSONDecodeError:
+                print("Failed to read spotdl metadata dump.")
+                exit(1)
+
+        print(f"Auditing {len(track_data)} tracks...")
             
-    except Exception as e:
-        print(f"\nError fetching Spotify playlist natively: {e}")
-        print("Reminder: If this is a public playlist you don't own, Spotify's API lockdown requires you to copy/clone the tracks into a playlist on your own account.")
-        exit(1)
+        # Pass 1: See what we already have
+        found_tracks, missing_tracks = check_local_files(track_data)
 
-    print(f"Auditing {len(songs)} tracks against local storage...")
-
-    # Pass 1: Local disk check
-    found_tracks, missing_urls, missing_report_lines = audit_local_storage(songs)
-
-    # Pass 2: Download phase for missing files
-    if missing_urls:
-        print(f"\nFound {len(missing_urls)} missing tracks. Launching spotDL...")
-        
-        chunk_size = 15
-        total_chunks = (len(missing_urls) + chunk_size - 1) // chunk_size
-        
-        try:
-            for i in range(0, len(missing_urls), chunk_size):
-                chunk = missing_urls[i:i + chunk_size]
+        # Pass 2: Download anything missing
+        if missing_tracks:
+            print(f"\nAttempting to automatically download {len(missing_tracks)} missing tracks...")
+            
+            urls_to_download = [track.split("|")[1] for track in missing_tracks]
+            
+            chunk_size = 15
+            total_chunks = (len(urls_to_download) + chunk_size - 1) // chunk_size
+            
+            for i in range(0, len(urls_to_download), chunk_size):
+                chunk = urls_to_download[i:i + chunk_size]
                 current_chunk = (i // chunk_size) + 1
                 
-                print(f">> Processing Batch {current_chunk} of {total_chunks} ({len(chunk)} tracks)...")
+                print(f"\n>> Processing Batch {current_chunk} of {total_chunks} ({len(chunk)} tracks)...")
                 cmd = ["spotdl", "download"] + chunk + ["--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
                 subprocess.run(cmd)
-        
-        except KeyboardInterrupt:
-            print("\n\nProcess aborted by user (Ctrl+C). Saving current progress...")
-        
-        # Pass 3: Final re-audit to verify what successfully made it to disk
-        print("\nRe-auditing library after download phase...")
-        found_tracks, _, missing_report_lines = audit_local_storage(songs)
+                
+            # Pass 3: Re-audit to see what failed
+            print("\nRe-auditing library after download phase...")
+            found_tracks, missing_tracks = check_local_files(track_data)
 
-    # Build the final M3U file natively
-    if found_tracks:
-        with open(m3u_path, 'w') as m3u:
-            m3u.write("#EXTM3U\n")
-            for track_path in found_tracks:
-                m3u.write(f"{track_path}\n")
-        print(f"\nGenerated Navidrome-compatible playlist: {m3u_path}")
+        # Write the M3U File
+        if found_tracks:
+            with open(m3u_path, 'w') as m3u:
+                m3u.write("#EXTM3U\n")
+                for track_path in found_tracks:
+                    m3u.write(f"{track_path}\n")
+            print("Finished:")
+            print(f"Wrote {len(found_tracks)} tracks to {m3u_path}")
 
-    # 3. Write or cleanup the missing report
-    if missing_report_lines:
-        with open(missing_path, 'w') as miss:
-            miss.write(f"--- Missing Tracks for {name} ---\n")
-            miss.write(f"Format: Artist - Title|Spotify URL\n\n")
-            for track in missing_report_lines:
-                miss.write(f"{track}\n")
-        print(f"Wrote {len(missing_report_lines)} tracks to {missing_path}")
-    else:
-        if os.path.exists(missing_path):
-            os.remove(missing_path)
-            print(f"Cleaned up old missing tracks report: {missing_path}")
-        print("All tracks synced! No missing tracks detected.")
-        
+        # Write the Missing Tracks Report
+        if missing_tracks:
+            with open(missing_path, 'w') as miss:
+                miss.write(f"--- Missing Tracks for {name} ---\n")
+                miss.write(f"Format: Artist - Title|Spotify URL\n\n")
+                for track in missing_tracks:
+                    miss.write(f"{track}\n")
+            print(f"Wrote {len(missing_tracks)} tracks to {missing_path}")
+        else:
+            # 100% complete! Clean up the old report if it exists from a previous run
+            if os.path.exists(missing_path):
+                os.remove(missing_path)
+                print(f"Cleaned up old missing tracks report: {os.path.basename(missing_path)}")
+
+    except KeyboardInterrupt:
+        print("\n\nProcess aborted by user (Ctrl+C).")
+        print("Downloads stopped. Playlist generation skipped.")
+
+    finally:
+        # Cleanup
+        if os.path.exists(temp_json):
+            os.remove(temp_json)
+            print(f"Cleaned up temporary file: {temp_json}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Navidrome M3U playlists from Spotify URLs.")
     parser.add_argument("name", help="The name of the playlist (wrap in quotes, e.g., \"My Gym Mix\")")
