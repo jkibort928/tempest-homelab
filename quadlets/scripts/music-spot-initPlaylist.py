@@ -3,6 +3,7 @@ import os
 import subprocess
 import argparse
 import re
+import logging
 from spotdl.utils.formatter import sanitize_string
 from spotdl.types.playlist import Playlist
 from spotdl.utils.spotify import SpotifyClient
@@ -14,6 +15,11 @@ PLAYLIST_DIR = f"{BASE_DIR}/Playlists"
 SPOTIFY_DIR = f"{BASE_DIR}/Mainstream"
 NAVIDROME_MOUNT = "/music"
 NAVI_SPOTIFY=f"{NAVIDROME_MOUNT}/Mainstream"
+SPOTIFY_ENV_FILENAME="spotify.env"
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(script_dir, SPOTIFY_ENV_FILENAME)
+load_dotenv(dotenv_path=env_path)
 
 def audit_local_storage(songs):
     """Checks local disk and returns found tracks, missing URLs, and report lines."""
@@ -38,13 +44,7 @@ def audit_local_storage(songs):
 def build_playlist(name, url):
     os.makedirs(PLAYLIST_DIR, exist_ok=True)
 
-    # 1. Load the specific .env file 
-    # (Looks for .env.spotify in the same directory as this script)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    env_path = os.path.join(script_dir, ".env.spotify")
-    load_dotenv(dotenv_path=env_path)
-
-    # 2. Extract the 22-character Spotify ID from the URL
+    # Extract the 22-character Spotify ID from the URL
     match = re.search(r'(?:playlist|album|artist)/([a-zA-Z0-9]{22})', url)
     playlist_id = match.group(1) if match else "UNKNOWN_ID"
 
@@ -52,6 +52,13 @@ def build_playlist(name, url):
     missing_path = f"{PLAYLIST_DIR}/missing_{name} [{playlist_id}].txt"
 
     print(f"Initializing Official Spotify API Client...")
+
+    # Intercept spotDL's internal logs and print them to the terminal
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S"
+    )
     
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
@@ -63,7 +70,8 @@ def build_playlist(name, url):
     SpotifyClient.init(
         client_id=client_id,
         client_secret=client_secret,
-        user_auth=True
+        user_auth=True,
+        headless=True
     )
 
     try:
