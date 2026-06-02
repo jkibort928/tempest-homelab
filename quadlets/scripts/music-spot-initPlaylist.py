@@ -21,6 +21,22 @@ def fetch_metadata(url, temp_file):
         print(f"Error fetching metadata. Command exited with status {result.returncode}")
         exit(1)
 
+def check_local_files(track_data):
+    found = []
+    missing = []
+    for track in track_data:
+        artist = sanitize_string(track.get('artist', 'Unknown'))
+        title = sanitize_string(track.get('name', 'Unknown'))
+        expected_filename = f"{artist} - {title}.mp3"
+        fullFilePath = os.path.join(SPOTIFY_DIR, expected_filename)
+        
+        if os.path.exists(fullFilePath):
+            found.append(f"{NAVI_SPOTIFY}/{expected_filename}")
+        else:
+            track_url = track.get('url', 'UNKNOWN_URL')
+            missing.append(f"{artist} - {title}|{track_url}")
+    return found, missing
+
 def build_playlist(name, url):
     os.makedirs(PLAYLIST_DIR, exist_ok=True)
 
@@ -41,25 +57,23 @@ def build_playlist(name, url):
             print("Failed to read spotdl metadata dump.")
             exit(1)
 
-    found_tracks = []
-    missing_tracks = []
-
     print(f"Auditing {len(track_data)} tracks...")
+        
+    # Pass 1: See what we already have
+    found_tracks, missing_tracks = check_local_files(track_data)
 
-    # Check local storage for each track
-    for track in track_data:
-        artist = sanitize_string(track.get('artist', 'Unknown'))
-        title = sanitize_string(track.get('name', 'Unknown'))
+    # Pass 2: Download anything missing
+    if missing_tracks:
+        print(f"\nAttempting to automatically download {len(missing_tracks)} missing tracks...")
         
-        expected_filename = f"{artist} - {title}.mp3"
+        urls_to_download = [track.split("|")[1] for track in missing_tracks]
         
-        fullFilePath = os.path.join(SPOTIFY_DIR, expected_filename)
-        if os.path.exists(fullFilePath):
-            found_tracks.append(f"{NAVI_SPOTIFY}/{expected_filename}")
-        else:
-            # Grab the Spotify URL from the JSON data
-            track_url = track.get('url', 'UNKNOWN_URL')
-            missing_tracks.append(f"{artist} - {title}|{track_url}")
+        cmd = ["spotdl", "download"] + urls_to_download + ["--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
+        subprocess.run(cmd)
+        
+        # Pass 3: Re-audit to see what failed
+        print("\nRe-auditing library after download phase...")
+        found_tracks, missing_tracks = check_local_files(track_data)
 
     # Write the M3U File
     if found_tracks:
