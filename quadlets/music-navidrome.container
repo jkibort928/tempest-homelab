@@ -23,7 +23,7 @@ Environment=ND_ENABLETRANSCODINGCONFIG=true
 
 # Volume Mounts
 Volume=%h/srv/@music/config/navidrome:/data:Z
-Volume=%h/srv/@music/data:/music:z
+Volume=%h/srv/@music/data:/music:ro,z
 Volume=%h/srv/@music/backups:/backups:Z
 Network=media-internal.network
 
