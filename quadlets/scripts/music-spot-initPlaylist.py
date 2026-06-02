@@ -68,9 +68,17 @@ def build_playlist(name, url):
         
         urls_to_download = [track.split("|")[1] for track in missing_tracks]
         
-        cmd = ["spotdl", "download"] + urls_to_download + ["--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
-        subprocess.run(cmd)
+        chunk_size = 15
+        total_chunks = (len(urls_to_download) + chunk_size - 1) // chunk_size
         
+        for i in range(0, len(urls_to_download), chunk_size):
+            chunk = urls_to_download[i:i + chunk_size]
+            current_chunk = (i // chunk_size) + 1
+            
+            print(f"\n>> Processing Batch {current_chunk} of {total_chunks} ({len(chunk)} tracks)...")
+            cmd = ["spotdl", "download"] + chunk + ["--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
+            subprocess.run(cmd)
+            
         # Pass 3: Re-audit to see what failed
         print("\nRe-auditing library after download phase...")
         found_tracks, missing_tracks = check_local_files(track_data)
