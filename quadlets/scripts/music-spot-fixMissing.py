@@ -22,7 +22,7 @@ def process_missing_file(filepath):
     # Initialize a queue to hold all matched pairs
     download_queue = []
 
-    for line in lines:
+    for i, line in enumerate(lines):
         # Skip headers and empty lines
         if line.startswith("---") or line.startswith("Format:") or not line.strip():
             continue
@@ -37,7 +37,7 @@ def process_missing_file(filepath):
         if os.path.exists(os.path.join(SPOTIFY_DIR, expected_filename)):
             continue
         
-        print(f"Missing: {track_info}")
+        print(f"Missing: {track_info} ({i}/{len(lines)})")
         yt_url = input("YouTube URL (or hit Enter to skip): ").strip()
 
         if not yt_url:
