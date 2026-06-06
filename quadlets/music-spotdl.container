@@ -1,0 +1,32 @@
+[Unit]
+Description=SpotDL Web Interface
+After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Container]
+ContainerName=spotdl
+Image=docker.io/spotdl/spotify-downloader:latest
+AutoUpdate=registry
+
+UserNS=keep-id
+User=1000:1000
+
+Memory=512M
+
+Exec=web --host 0.0.0.0 --web-use-output-dir --keep-alive --output "/music/{artist} - {title}.{output-ext}"
+
+Volume=%h/srv/@music/data/Mainstream:/music:z
+Network=media-internal.network
+
+PublishPort=8800:8800
+
+Volume=/etc/localtime:/etc/localtime:ro
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUWeight=50
+Restart=on-failure
+RestartSec=5

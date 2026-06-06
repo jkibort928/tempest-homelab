@@ -1,0 +1,38 @@
+[Unit]
+Description=MeTube YouTube Downloader (Audio Only)
+After=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Container]
+ContainerName=metube
+Image=ghcr.io/alexta69/metube:latest
+AutoUpdate=registry
+
+UserNS=keep-id
+User=1000:1000
+
+Memory=512M
+
+# Strict Naming Scheme
+Environment=OUTPUT_TEMPLATE="%(title)s [%(id)s].%(ext)s"
+Environment=DOWNLOAD_DIR=/downloads
+Environment=AUDIO_DOWNLOAD_DIR=/downloads
+
+# Strict yt-dlp automation and rate-limiting rules
+Environment='YTDL_OPTIONS={"format":"bestaudio/best","min_sleep_interval":5,"max_sleep_interval":15,"postprocessors":[{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"0"},{"key":"FFmpegMetadata","add_metadata":true},{"key":"EmbedThumbnail"}]}'
+
+Volume=%h/srv/@music/data/Exclusives:/downloads:z
+Network=media-internal.network
+
+PublishPort=8081:8081
+
+Volume=/etc/localtime:/etc/localtime:ro
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUWeight=50
+Restart=on-failure
+RestartSec=5
