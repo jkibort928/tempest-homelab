@@ -1,0 +1,3 @@
+[Build]
+ImageTag=localhost/spotdl-local:latest
+File=%E/containers/systemd/dockerfiles/spotdl.Dockerfile

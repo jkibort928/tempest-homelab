@@ -6,15 +6,15 @@ StartLimitIntervalSec=60
 
 [Container]
 ContainerName=spotdl
-Image=docker.io/spotdl/spotify-downloader:latest
-AutoUpdate=registry
+Image=spotdl-local.build
+AutoUpdate=local
 
 UserNS=keep-id
 User=1000:1000
 
 Memory=512M
 
-Exec=web --host 0.0.0.0 --web-use-output-dir --keep-alive --output "/music/{artist} - {title}.{output-ext}"
+Exec=uvicorn spotdl_server:app --host 0.0.0.0 --port 8800
 
 Volume=%h/srv/@music/data/Mainstream:/music:z
 Network=media-internal.network
