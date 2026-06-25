@@ -1,0 +1,24 @@
+[Unit]
+Description=SillyTavern Frontend UI
+After=ai-searxng.service
+
+[Container]
+ContainerName=sillytavern
+Image=ghcr.io/sillytavern/sillytavern:latest
+
+Network=host
+
+Environment=SILLYTAVERN_LISTEN=true
+Environment=SILLYTAVERN_WHITELIST='["127.0.0.1", "::1", "100.64.0.0/10", "fd7a:115c:a1e0::/48"]'
+Environment=SILLYTAVERN_ENABLEUSERACCOUNTS=true
+Environment=SILLYTAVERN_ENABLEDISCREETLOGIN=true
+
+Volume=/home/spoob/srv/@ai/sillytavern/config:/home/node/app/config:Z
+Volume=/home/spoob/srv/@ai/sillytavern/data:/home/node/app/data:Z
+
+[Install]
+WantedBy=default.target
+
+[Service]
+Restart=on-failure
+RestartSec=5
