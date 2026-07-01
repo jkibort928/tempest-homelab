@@ -6,7 +6,7 @@ echo "Triggering SQLite live database dump..."
 if "$HOME/quadlets/scripts/music-backup.sh"; then
     echo "Database dump completed."
 else
-    echo "Error: 'music-backup.sh' failed! Aborting."
+    echo "Error: database dump failed! Aborting."
     exit 1
 fi
 
