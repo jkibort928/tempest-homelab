@@ -4,8 +4,8 @@ An opinionated, GitOps-driven infrastructure repository for a single-node, bare-
 
 ## Hardware Setup
 #### Dell Inspiron 3511 (Headless)
-* **CPU:** Intel i3-1115G4 (Repasted with PTM-7950 for thermal efficiency/noise improvement)
-* **RAM:** 8GB
+* **CPU:** Intel i3-1115G4 (2 Cores / 4 Threads)
+* **RAM:** 8GB DDR4
 * **Storage:** 2TB Enterprise Samsung 2.5" SATA SSD
 
 ## Architecture & Core Technologies
