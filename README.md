@@ -1,6 +1,6 @@
 # Tempest (Homelab Main Node)
 
-An opinionated, GitOps-driven infrastructure repository for a single-node, bare-metal home server deployment. This repository manages system configuration, containerized microservices, secure overlay networking, and automated backup workflows.
+An opinionated, GitOps-driven infrastructure repository for a bare-metal home server deployment. This repository manages system configuration, containerized microservices, secure overlay networking, and automated backup workflows.
 
 ## Hardware Setup
 #### Dell Inspiron 3511 (Headless)
