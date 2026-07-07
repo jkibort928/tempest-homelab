@@ -3,7 +3,7 @@
 An opinionated, GitOps-driven infrastructure repository for a single-node, bare-metal home server deployment. This repository manages system configuration, containerized microservices, secure overlay networking, and automated backup workflows.
 
 ## Hardware Setup
-#### Headless Dell Inspiron 3511
+#### Dell Inspiron 3511 (Headless)
 * **CPU:** Intel i3-1115G4 (Repasted with PTM-7950 for thermal efficiency/noise improvement)
 * **RAM:** 8GB
 * **Storage:** 2TB Enterprise Samsung 2.5" SATA SSD
