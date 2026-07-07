@@ -3,7 +3,7 @@
 An opinionated, GitOps-driven infrastructure repository for a single-node, bare-metal home server deployment. This repository manages system configuration, containerized microservices, secure overlay networking, and automated backup workflows.
 
 ## Hardware Setup
-### Currently running on a **headless Dell Inspiron 3511**.
+#### Headless Dell Inspiron 3511
 * **CPU:** Intel i3-1115G4 (Repasted with PTM-7950 for thermal efficiency/noise improvement)
 * **RAM:** 8GB
 * **Storage:** 2TB Enterprise Samsung 2.5" SATA SSD
@@ -17,13 +17,14 @@ An opinionated, GitOps-driven infrastructure repository for a single-node, bare-
 
 ## Repository Highlights
 
-### Automation & Backup Scripts (`/Scripts`)
+### Backup Scripts (`/Scripts`) & Automation
 * **Cron-ready Backups:** Modular Bash scripts (`immichBackup.sh`, `nextcloudBackup.sh`, etc.) that handle database dumps and secure data replication via BorgBackup to a local storage target.
 * **System Lifecycle Management:** System-level package upgrades, container image updates, and system layering are all handled using custom subshell wrappers for efficent manual administration.
 
-### Declarative Environment Management (`/config`)
+### Declarative Environment Management
 * **Custom Package Layouts (`layered.spoob`):** Utilizes a custom, XML-like layout framework (parsed with a custom tool written in Haskell) to track and replicate system-layered packages cleanly.
 * **Isolated Tooling:** Uses Distrobox to sandbox mutable CLI environments, keeping development tools entirely separated from the host operating system.
+
 
 ## Sister repository: [Souei](https://github.com/jkibort928/souei-homelab) (Companion Node)
 A more powerful compute node that handles heavier tasks (like Immich machine learning).
