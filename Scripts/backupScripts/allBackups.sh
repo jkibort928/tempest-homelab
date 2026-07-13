@@ -10,7 +10,7 @@ fi
 # Define the scripts to execute explicitly to avoid running unintended files
 SCRIPTS=(
     "immichBackup.sh"
-    "nextcloudBackup.sh"
+    "navidromeBackup.sh"
     "vikunjaBackup.sh"
 )
 

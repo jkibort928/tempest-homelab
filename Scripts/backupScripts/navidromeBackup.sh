@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "Triggering SQLite live database dump..."
 if "$HOME/quadlets/scripts/music-backup.sh"; then
     echo "Database dump completed."
@@ -14,4 +16,4 @@ EXCLUDES=(
     '~/srv/@music/config/navidrome/artwork'
 )
 
-source "$(dirname "$0")/backup_core.sh"
+source "$(dirname "$0")/backup-core.sh"

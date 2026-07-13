@@ -1,5 +1,4 @@
-#!/bin/bash
-# backup_core.sh
+#!/usr/bin/env bash
 
 # Define the base repository path
 BASE_REPO="spoob@ciel.local:/run/media/spoob/bongusbackup/ServerBorgs"

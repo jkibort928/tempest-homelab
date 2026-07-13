@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 SERVICE_NAME="Immich"
 SOURCES=("$HOME/srv/@immich/photos")
 EXCLUDES=(
@@ -5,4 +7,4 @@ EXCLUDES=(
     '~/srv/@immich/photos/encoded-video'
 )
 
-source "$(dirname "$0")/backup_core.sh"
+source "$(dirname "$0")/backup-core.sh"
