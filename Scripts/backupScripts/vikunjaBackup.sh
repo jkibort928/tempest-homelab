@@ -1,7 +1,5 @@
-read -s -p "Enter Borg Repository Passphrase: " BORG_PASSPHRASE
-echo ""
-export BORG_PASSPHRASE
+SERVICE_NAME="Vikunja"
+SOURCES=("$HOME/srv/@vikunja")
+EXCLUDES=()
 
-borg create --stats --progress \
-    spoob@ciel.local:/run/media/spoob/PersonalBackup/Borg/Vikunja/::{hostname}-{now:%Y-%m-%d_%H:%M} \
-    ~/srv/@vikunja
+source "$(dirname "$0")/backup_core.sh"
