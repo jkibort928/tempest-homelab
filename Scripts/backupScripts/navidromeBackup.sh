@@ -1,3 +1,11 @@
+echo "Triggering SQLite live database dump..."
+if "$HOME/quadlets/scripts/music-backup.sh"; then
+    echo "Database dump completed."
+else
+    echo "Error: database dump failed! Aborting."
+    exit 1
+fi
+
 SERVICE_NAME="Navidrome"
 SOURCES=("$HOME/srv/@music")
 EXCLUDES=(
