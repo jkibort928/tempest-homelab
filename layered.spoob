@@ -21,6 +21,7 @@
         <fusion>
             intel-media-driver
         </fusion>
+        intel-gpu-firmware
         intel-gpu-tools 
         libva-utils
     </hardware>
