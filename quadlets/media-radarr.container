@@ -1,0 +1,31 @@
+[Unit]
+Description=Radarr Movie Manager
+After=network-online.target media-prowlarr.service media-rdtclient.service
+Wants=media-prowlarr.service media-rdtclient.service
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Container]
+ContainerName=radarr
+Image=lscr.io/linuxserver/radarr:latest
+AutoUpdate=registry
+
+Environment=PUID=0
+Environment=PGID=0
+
+Memory=512M
+
+Volume=%h/srv/@media/config/radarr:/config:Z
+Volume=%h/srv/@media/data:/data:z
+Network=media-internal.network
+PublishPort=7878:7878
+
+Volume=/etc/localtime:/etc/localtime:ro
+
+[Install]
+WantedBy=default.target
+
+[Service]
+CPUWeight=50
+Restart=on-failure
+RestartSec=5

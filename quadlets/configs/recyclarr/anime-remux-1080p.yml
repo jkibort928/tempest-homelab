@@ -45,14 +45,14 @@ radarr:
         reset_unmatched_scores:
           enabled: true
           except:
-            - "Legacy x264 10bit"
+            - "x264 (10-bit)"
 
       - trash_id: 722b624f9af1e492284c4bc842153a38
         name: "[Anime] Planning - 1080p"
         reset_unmatched_scores:
           enabled: true
           except:
-            - "Legacy x264 10bit"
+            - "x264 (10-bit)"
 
     custom_formats:
       - trash_ids:

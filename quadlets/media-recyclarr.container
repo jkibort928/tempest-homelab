@@ -1,7 +1,7 @@
 [Unit]
 Description=Recyclarr Trash Guides Sync
-After=network-online.target media-sonarr.service
-Wants=media-sonarr.service
+After=network-online.target media-sonarr.service media-radarr.service
+Wants=media-sonarr.service media-radarr.service
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
