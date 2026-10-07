@@ -44,7 +44,7 @@ def run_cmd_logged(cmd, description: str, job: dict):
     append_log(f"--- START: {description} ---")
     with open(LOG_PATH, "a") as log_file:
         proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True, start_new_session=True)
-        job["proc"] = proc  # Store process reference directly on job object
+        job["proc"] = proc
         proc.wait()
         job["proc"] = None
 
@@ -83,11 +83,6 @@ def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: B
 
 # --- BACKGROUND TASK WORKERS ---
 def run_quick_download(job: dict, url: str, audio_url: str = None):
-    if "playlist" in url.lower() or (audio_url and "playlist" in audio_url.lower()):
-        append_log("REJECTED: Quick Download is for single tracks. Use the 'Playlist Sync' tab for playlists.")
-        job["status"] = "canceled"
-        return
-
     target = f"{audio_url}|{url}" if audio_url else url
     cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
     if audio_url:
@@ -172,8 +167,8 @@ async def main_page():
 
                     <div id="tab-quick" class="tab-content active">
                         <form onsubmit="event.preventDefault(); submitForm('/download', this);">
-                            <label>Spotify URL</label>
-                            <input type="text" name="url" placeholder="Spotify Track / Album / Playlist URL..." required>
+                            <label>Spotify Track / Album URL</label>
+                            <input type="text" name="url" placeholder="https://open.spotify.com/track/..." required>
                             <label>Explicit Audio URL (Optional Youtube/Audio Link)</label>
                             <input type="text" name="audio_url" placeholder="https://www.youtube.com/watch?v=...">
                             <button type="submit" class="submit-btn">Download to Server</button>
@@ -229,7 +224,12 @@ async def main_page():
 
                 async function submitForm(endpoint, form) {
                     try {
-                        await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+                        const res = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+                        if (!res.ok) {
+                            const err = await res.json();
+                            alert("Validation Error: " + (err.error || "Failed to submit job."));
+                            return;
+                        }
                         form.reset();
                         updateQueue();
                     } catch (e) {
@@ -346,12 +346,27 @@ async def main_page():
 
 @app.post("/download")
 async def start_download(url: str = Form(...), audio_url: str = Form(None), background_tasks: BackgroundTasks = None):
-    enqueue_job("download", f"Single Download: {url}", run_quick_download, url, audio_url, background_tasks=background_tasks)
+    clean_url = url.strip()
+    if "spotify.com/playlist" in clean_url.lower():
+        return JSONResponse({"error": "Quick Download is intended for single tracks/albums. Please use the 'Playlist Sync' tab for playlists."}, status_code=400)
+
+    enqueue_job("download", f"Single Download: {clean_url}", run_quick_download, clean_url, audio_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
 @app.post("/import-playlist")
 async def import_playlist(name: str = Form(...), url: str = Form(...), background_tasks: BackgroundTasks = None):
-    enqueue_job("playlist", f"Playlist: {name}", task_import_playlist, name, url, background_tasks=background_tasks)
+    clean_name = name.strip()
+    clean_url = url.strip()
+
+    # Protection 1: Detect URLs accidentally pasted into the Name field
+    if re.search(r'https?://', clean_name) or "spotify.com" in clean_name.lower():
+        return JSONResponse({"error": "Playlist Name cannot be a URL! Please enter a plain text title (e.g., 'Gym Mix')."}, status_code=400)
+
+    # Protection 2: Ensure the URL is actually a Spotify Playlist link
+    if "spotify.com/playlist" not in clean_url.lower():
+        return JSONResponse({"error": "Playlist URL must be a valid Spotify Playlist link (e.g., open.spotify.com/playlist/...). Track/album links are not allowed here."}, status_code=400)
+
+    enqueue_job("playlist", f"Playlist: {clean_name}", task_import_playlist, clean_name, clean_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
 @app.post("/resolve-missing")
@@ -361,7 +376,6 @@ async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(
 
 @app.get("/queue")
 async def get_queue():
-    # Sanitized list omitting non-serializable process objects
     sanitized = [
         {
             "id": j["id"],
@@ -380,7 +394,6 @@ async def cancel_job(job_id: str):
         if job["id"] == job_id:
             job["status"] = "canceled"
             proc = job.get("proc")
-            # Only send SIGTERM if this specific job owns the running process
             if proc and proc.poll() is None:
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
