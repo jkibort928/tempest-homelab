@@ -15,7 +15,13 @@ NAVI_SPOTIFY = f"{NAVIDROME_MOUNT}/Mainstream"
 
 def fetch_metadata(url, temp_file):
     print(f"Fetching playlist metadata from Spotify...")
-    cmd = ["spotdl", "save", url, "--save-file", temp_file, "--log-level", "INFO"]
+    cmd = [
+        "spotdl", "save", url,
+        "--save-file", temp_file,
+        "--log-level", "INFO",
+        "--threads", "1",
+        "--max-retries", "3"
+    ]
     result = subprocess.run(cmd)
     if result.returncode != 0:
         print(f"Error fetching metadata. Command exited with status {result.returncode}")

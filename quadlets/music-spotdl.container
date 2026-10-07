@@ -12,7 +12,7 @@ AutoUpdate=local
 UserNS=keep-id
 User=1000:1000
 
-Memory=512M
+Memory=1024M
 
 Volume=%h/quadlets/dockerfiles:/app:Z
 Volume=/mnt/storage/music:/music:Z

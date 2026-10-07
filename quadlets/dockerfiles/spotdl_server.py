@@ -115,15 +115,21 @@ def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: B
 # --- BACKGROUND TASK WORKERS ---
 def run_quick_download(job: dict, url: str, audio_url: str = None):
     target = f"{audio_url}|{url}" if audio_url else url
-    cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
+    cmd = [
+        "spotdl", "download", target,
+        "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+        "--threads", "1",
+        "--max-retries", "3"
+    ]
     if audio_url:
         cmd.extend(["--overwrite", "force"])
 
     run_cmd_logged(cmd, f"Single Track Download: {target}", job)
 
-def task_import_playlist(job: dict, name: str, url: str):
+def handle_playlist_sync(job: dict, name: str, url: str):
+    """Task worker for initializing and syncing a Spotify playlist."""
     cmd = ["python3", "/app/music-spot-initPlaylist.py", name, url]
-    run_cmd_logged(cmd, f"Playlist Import: {name}", job)
+    run_cmd_logged(cmd, f"Playlist Sync: {name}", job)
 
 def task_resolve_batch(job: dict, items: list, playlist_name: str, playlist_url: str):
     total = len(items)
@@ -153,9 +159,9 @@ async def main_page():
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body { background: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 20px; box-sizing: border-box; }
-                .layout { display: flex; gap: 20px; max-width: 1200px; margin: 0 auto; flex-wrap: wrap; }
-                .main-content { flex: 2; min-width: 320px; }
-                .sidebar { flex: 1; min-width: 280px; background: #181818; border-radius: 8px; border: 1px solid #282828; padding: 15px; height: fit-content; }
+                .layout { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; flex-wrap: wrap; }
+                .main-content { flex: 1.2; min-width: 320px; }
+                .sidebar { flex: 1; min-width: 340px; background: #181818; border-radius: 8px; border: 1px solid #282828; padding: 15px; height: fit-content; }
                 
                 h2 { color: #1DB954; text-align: center; margin-top: 0; }
                 
@@ -173,7 +179,8 @@ async def main_page():
                 .missing-item { background: #222; border-left: 4px solid #e74c3c; padding: 12px; border-radius: 4px; margin-bottom: 10px; }
                 .missing-title { font-weight: bold; color: #fff; margin-bottom: 6px; }
                 
-                pre#log-box { background: #181818; padding: 15px; border-radius: 8px; overflow-y: auto; max-height: 250px; font-family: monospace; font-size: 13px; border: 1px solid #333; white-space: pre-wrap; margin: 0; }
+                /* Fixed height terminal window */
+                pre#log-box { background: #121212; padding: 12px; border-radius: 6px; overflow-y: auto; height: 280px; box-sizing: border-box; font-family: monospace; font-size: 12px; border: 1px solid #333; white-space: pre-wrap; margin: 0; color: #dcdcdc; }
                 
                 /* Sidebar Queue Styles */
                 .queue-item { background: #242424; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
@@ -228,26 +235,30 @@ async def main_page():
                         </div>
                         <div id="missing-list">Loading audit...</div>
                     </div>
-
-                    <div style="margin-top: 20px;">
-                        <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between; align-items:center;">
-                            <span>Live Terminal Output</span>
-                            <div>
-                                <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText);" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
-                                <button onclick="clearLog()" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; margin-left:5px;">Clear</button>
-                            </div>
-                        </h4>
-                        <pre id="log-box">Waiting for output...</pre>
-                    </div>
                 </div>
 
-                <!-- SIDEBAR QUEUE -->
+                <!-- SIDEBAR: TERMINAL + QUEUE -->
                 <div class="sidebar">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3 style="margin:0; color:#1DB954; font-size:16px;">Execution Queue</h3>
-                        <button onclick="clearHistory()" style="background:#333; color:#aaa; border:1px solid #444; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;">Clear History</button>
+                    <!-- LIVE TERMINAL OUTPUT -->
+                    <div style="margin-bottom: 20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 style="margin:0; color:#aaa; font-size:15px;">Live Terminal Output</h3>
+                            <div>
+                                <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText);" style="background:#333; color:white; border:1px solid #555; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
+                                <button onclick="clearLog()" style="background:#333; color:white; border:1px solid #555; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; margin-left:4px;">Clear</button>
+                            </div>
+                        </div>
+                        <pre id="log-box">Waiting for output...</pre>
                     </div>
-                    <div id="queue-list"><p style="color:#777; font-size:13px;">No active or pending jobs.</p></div>
+
+                    <!-- EXECUTION QUEUE -->
+                    <div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 style="margin:0; color:#1DB954; font-size:15px;">Execution Queue</h3>
+                            <button onclick="clearHistory()" style="background:#333; color:#aaa; border:1px solid #444; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;">Clear History</button>
+                        </div>
+                        <div id="queue-list"><p style="color:#777; font-size:13px;">No active or pending jobs.</p></div>
+                    </div>
                 </div>
             </div>
 
@@ -292,18 +303,14 @@ async def main_page():
                         }
                     });
 
-                    if (items.length === 0) {
-                        alert("Please enter at least one YouTube override URL before confirming.");
-                        return;
-                    }
-
-                    // Disable button & change style
                     btn.disabled = true;
                     btn.style.background = '#555';
                     btn.style.cursor = 'not-allowed';
                     btn.innerText = 'Submitted to Queue';
                     msg.style.color = '#3498db';
-                    msg.innerText = 'Overrides queued! Refresh unresolved list to re-enable button after processing.';
+                    msg.innerText = items.length > 0 
+                        ? 'Overrides queued! Refresh unresolved list to re-enable button after processing.'
+                        : 'Playlist re-sync queued! Refresh unresolved list to re-enable button after processing.';
 
                     try {
                         const res = await fetch('/resolve-batch', {
@@ -322,7 +329,7 @@ async def main_page():
                             btn.disabled = false;
                             btn.style.background = '#3498db';
                             btn.style.cursor = 'pointer';
-                            btn.innerText = 'Confirm & Queue Overrides';
+                            btn.innerText = 'Confirm Overrides / Re-sync';
                             msg.innerText = '';
                             return;
                         }
@@ -333,7 +340,7 @@ async def main_page():
                         btn.disabled = false;
                         btn.style.background = '#3498db';
                         btn.style.cursor = 'pointer';
-                        btn.innerText = 'Confirm & Queue Overrides';
+                        btn.innerText = 'Confirm Overrides / Re-sync';
                         msg.innerText = '';
                     }
                 }
@@ -415,7 +422,7 @@ async def main_page():
                                             data-name="${encodeURIComponent(items.name)}" 
                                             data-url="${encodeURIComponent(items.spotify_playlist_url)}"
                                             style="background:#3498db; color:white; border:none; padding:10px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:14px; transition: background 0.2s;">
-                                            Confirm & Queue Overrides
+                                            Confirm Overrides / Re-sync
                                         </button>
                                         <span id="msg_${playlistIdx}" style="font-size:13px; color:#aaa;"></span>
                                     </div>
@@ -463,6 +470,7 @@ async def start_download(url: str = Form(...), audio_url: str = Form(None), back
     return PlainTextResponse("Enqueued")
 
 @app.post("/import-playlist")
+@app.post("/sync-playlist")
 async def import_playlist(name: str = Form(""), url: str = Form(...), background_tasks: BackgroundTasks = None):
     clean_name = name.strip()
     clean_url = url.strip()
@@ -477,7 +485,7 @@ async def import_playlist(name: str = Form(""), url: str = Form(...), background
         clean_name = fetch_spotify_playlist_title(clean_url)
         append_log(f"Auto-detected playlist name: '{clean_name}'")
 
-    enqueue_job("playlist", f"Playlist: {clean_name}", task_import_playlist, clean_name, clean_url, background_tasks=background_tasks)
+    enqueue_job("playlist", f"Playlist: {clean_name}", handle_playlist_sync, clean_name, clean_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
 @app.post("/resolve-batch")
@@ -494,12 +502,14 @@ async def resolve_batch(request: Request, background_tasks: BackgroundTasks = No
         if s_url and y_url:
             valid_items.append({"spotify_url": s_url, "youtube_url": y_url})
 
-    if not valid_items:
-        return JSONResponse({"error": "No valid YouTube override URLs provided."}, status_code=400)
+    if not valid_items and not (playlist_name and playlist_url):
+        return JSONResponse({"error": "No valid override URLs or playlist details provided."}, status_code=400)
+
+    job_title = f"Batch Remap ({len(valid_items)} tracks): {playlist_name or 'Playlist'}" if valid_items else f"Re-sync Playlist: {playlist_name or 'Playlist'}"
 
     enqueue_job(
         "remap_batch",
-        f"Batch Remap ({len(valid_items)} tracks): {playlist_name or 'Playlist'}",
+        job_title,
         task_resolve_batch,
         valid_items,
         playlist_name,
