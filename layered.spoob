@@ -7,8 +7,13 @@
 
 <filesystem>
     btrfs-progs
+    mergerfs
     ?#compsize # compression size report util
 </filesystem>
+
+<hardware>
+    intel-gpu-firmware
+</hardware>
 
 <tools>
     btop
@@ -16,16 +21,6 @@
     tuned # power management
 
     distrobox
-    
-    <hardware>
-        <fusion>
-            intel-media-driver
-        </fusion>
-        intel-gpu-firmware
-        intel-gpu-tools 
-        libva-utils
-    </hardware>
-    
 </tools>
 
 <net>

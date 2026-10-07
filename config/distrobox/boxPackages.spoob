@@ -20,7 +20,7 @@
     <yt-dlp>
         ffmpeg
         nodejs
-    <yt-dlp>
+    </yt-dlp>
 
     <ghcup>
         gcc
