@@ -21,7 +21,6 @@ app = FastAPI()
 # --- QUEUE & PROCESS MANAGEMENT ---
 job_queue = []
 job_lock = asyncio.Lock()
-current_proc = None
 
 def cleanup_queue():
     """Retains active jobs and trims history to the last 20 completed/canceled entries."""
@@ -38,18 +37,16 @@ def append_log(text: str):
         f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
 
 def run_cmd_logged(cmd, description: str, job: dict):
-    global current_proc
     if job.get("status") == "canceled":
         append_log(f"--- SKIPPED (CANCELED): {description} ---")
         return
 
     append_log(f"--- START: {description} ---")
     with open(LOG_PATH, "a") as log_file:
-        # start_new_session=True gives child its own Process Group ID so cancel_job doesn't kill FastAPI
         proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True, start_new_session=True)
-        current_proc = proc
+        job["proc"] = proc  # Store process reference on the job itself
         proc.wait()
-        current_proc = None
+        job["proc"] = None
 
     if job.get("status") == "canceled":
         append_log(f"--- CANCELED/TERMINATED: {description} ---\n")
@@ -355,14 +352,15 @@ async def get_queue():
 
 @app.post("/cancel/{job_id}")
 async def cancel_job(job_id: str):
-    global current_proc
     for job in job_queue:
         if job["id"] == job_id:
             job["status"] = "canceled"
-            if current_proc and current_proc.poll() is None:
+            proc = job.get("proc")
+            # Only kill process if this specific job owns the running process
+            if proc and proc.poll() is None:
                 try:
-                    os.killpg(os.getpgid(current_proc.pid), signal.SIGTERM)
-                except ProcessLookupError:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                except (ProcessLookupError, OSError):
                     pass
             cleanup_queue()
             return JSONResponse({"status": "canceled"})
