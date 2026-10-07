@@ -9,11 +9,14 @@ else
 fi
 
 SERVICE_NAME="Navidrome"
-SOURCES=("$HOME/srv/@music")
+SOURCES=(
+    "$HOME/srv/@music"
+    "/mnt/disk2/@music"
+)
 EXCLUDES=(
-    '~/srv/@music/config/navidrome/navidrome.db*'
-    '~/srv/@music/config/navidrome/cache'
-    '~/srv/@music/config/navidrome/artwork'
+    '*config/navidrome/navidrome.db*'
+    '*config/navidrome/cache'
+    '*config/navidrome/artwork'
 )
 
 source "$(dirname "$0")/backup-core.sh"

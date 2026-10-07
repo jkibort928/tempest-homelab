@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Define the base repository path
-BASE_REPO="spoob@ciel.local:/run/media/spoob/bongusbackup/ServerBorgs"
+BASE_REPO="spoob@cielBorg:/run/media/spoob/bongusbackup/ServerBorgs"
 
 # Prompt for passphrase if not already exported in the current session
 if [ -z "$BORG_PASSPHRASE" ]; then
