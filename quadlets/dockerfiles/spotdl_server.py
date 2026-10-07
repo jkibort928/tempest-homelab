@@ -9,6 +9,8 @@ import re
 import uuid
 import asyncio
 import signal
+import urllib.request
+import html as html_lib
 from collections import deque
 
 LOG_PATH = "/tmp/spotdl.log"
@@ -21,6 +23,37 @@ app = FastAPI()
 # --- QUEUE & PROCESS MANAGEMENT ---
 job_queue = []
 job_lock = asyncio.Lock()
+
+def fetch_spotify_playlist_title(url: str) -> str:
+    """Scrapes the playlist title from Spotify's Open Graph metadata tag."""
+    try:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            page_html = response.read().decode('utf-8', errors='ignore')
+            
+            # Match <meta property="og:title" content="...">
+            match = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', page_html, re.IGNORECASE)
+            if match:
+                raw_title = match.group(1)
+                # Strip Spotify brand trailing suffixes
+                clean_title = re.sub(r'\s*\|\s*Spotify$', '', raw_title, flags=re.IGNORECASE).strip()
+                return html_lib.unescape(clean_title)
+
+            # Fallback to <title>
+            title_match = re.search(r'<title>(.*?)</title>', page_html, re.IGNORECASE)
+            if title_match:
+                clean_title = re.sub(r'\s*\|\s*Spotify$', '', title_match.group(1), flags=re.IGNORECASE).strip()
+                return html_lib.unescape(clean_title)
+
+    except Exception as e:
+        append_log(f"Auto-fetch playlist title failed: {e}")
+
+    # Final fallback if title extraction failed
+    playlist_id = url.split("playlist/")[-1].split("?")[0] if "playlist/" in url else "Import"
+    return f"Spotify Playlist ({playlist_id[:6]})"
 
 def cleanup_queue():
     """Retains active jobs and trims history to the last 20 completed/canceled entries."""
@@ -177,8 +210,8 @@ async def main_page():
 
                     <div id="tab-playlist" class="tab-content">
                         <form onsubmit="event.preventDefault(); submitForm('/import-playlist', this);">
-                            <label>Playlist Name</label>
-                            <input type="text" name="name" placeholder="e.g. Gym Mix 2026" required>
+                            <label>Playlist Name <span style="color:#777; font-weight:normal;">(Optional - leave blank to auto-fetch title)</span></label>
+                            <input type="text" name="name" placeholder="Leave blank to auto-fetch title from Spotify">
                             <label>Spotify Playlist URL</label>
                             <input type="text" name="url" placeholder="https://open.spotify.com/playlist/..." required>
                             <button type="submit" class="submit-btn">Import & Generate .M3U</button>
@@ -354,17 +387,22 @@ async def start_download(url: str = Form(...), audio_url: str = Form(None), back
     return PlainTextResponse("Enqueued")
 
 @app.post("/import-playlist")
-async def import_playlist(name: str = Form(...), url: str = Form(...), background_tasks: BackgroundTasks = None):
+async def import_playlist(name: str = Form(""), url: str = Form(...), background_tasks: BackgroundTasks = None):
     clean_name = name.strip()
     clean_url = url.strip()
 
-    # Protection 1: Detect URLs accidentally pasted into the Name field
+    # Protection 1: Check if URL was pasted into Name field
     if re.search(r'https?://', clean_name) or "spotify.com" in clean_name.lower():
-        return JSONResponse({"error": "Playlist Name cannot be a URL! Please enter a plain text title (e.g., 'Gym Mix')."}, status_code=400)
+        return JSONResponse({"error": "Playlist Name cannot be a URL! Leave it blank to auto-fetch the playlist title."}, status_code=400)
 
-    # Protection 2: Ensure the URL is actually a Spotify Playlist link
+    # Protection 2: Check for valid Spotify Playlist URL
     if "spotify.com/playlist" not in clean_url.lower():
         return JSONResponse({"error": "Playlist URL must be a valid Spotify Playlist link (e.g., open.spotify.com/playlist/...). Track/album links are not allowed here."}, status_code=400)
+
+    # Auto-fetch title if blank
+    if not clean_name:
+        clean_name = fetch_spotify_playlist_title(clean_url)
+        append_log(f"Auto-detected playlist name: '{clean_name}'")
 
     enqueue_job("playlist", f"Playlist: {clean_name}", task_import_playlist, clean_name, clean_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
