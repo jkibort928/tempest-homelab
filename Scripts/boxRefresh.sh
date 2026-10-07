@@ -6,6 +6,7 @@ fi
 
 # Spoobing it
 COMPILED_PACKAGES=$(spoober --all ~/.config/distrobox/boxPackages.spoob)
+echo "Packages: $COMPILED_PACKAGES"
 
 echo "Generating transient distrobox.ini configuration..."
 cat << EOF > /tmp/transient-distrobox.ini
@@ -14,6 +15,7 @@ image=quay.io/fedora/fedora-toolbox:latest
 root=false
 start_now=true
 additional_packages="${COMPILED_PACKAGES}"
+volume="/var/mnt:/mnt:z"
 EOF
 
 echo "Wiping stale 'dev' container namespace..."
