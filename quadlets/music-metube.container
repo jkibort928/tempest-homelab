@@ -22,7 +22,7 @@ Environment=AUDIO_DOWNLOAD_DIR=/downloads
 # Strict yt-dlp automation and rate-limiting rules
 Environment='YTDL_OPTIONS={"format":"bestaudio/best","min_sleep_interval":5,"max_sleep_interval":15,"postprocessors":[{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"0"},{"key":"FFmpegMetadata","add_metadata":true},{"key":"EmbedThumbnail"}]}'
 
-Volume=%h/srv/@music/data/Exclusives:/downloads:z
+Volume=/mnt/storage/music/Exclusives:/downloads
 Network=media-internal.network
 
 PublishPort=8081:8081
