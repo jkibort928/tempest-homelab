@@ -15,7 +15,7 @@ Environment=PGID=0
 Memory=512M
 
 Volume=%h/srv/@media/config/rdtclient:/data/db:Z
-Volume=%h/srv/@media/data/downloads:/data/downloads:z
+Volume=/mnt/storage/media/downloads:/data/downloads
 Network=media-internal.network
 PublishPort=6500:6500
 

@@ -16,7 +16,7 @@ Environment=PGID=0
 Memory=512M
 
 Volume=%h/srv/@media/config/radarr:/config:Z
-Volume=%h/srv/@media/data:/data:z
+Volume=/mnt/storage/media:/data
 Network=media-internal.network
 PublishPort=7878:7878
 

@@ -17,7 +17,7 @@ Memory=512M
 
 # Both /config and /data. Sonarr needs to see /data/downloads and /data/media
 Volume=%h/srv/@media/config/sonarr:/config:Z
-Volume=%h/srv/@media/data:/data:z
+Volume=/mnt/storage/media:/data
 Network=media-internal.network
 PublishPort=8989:8989
 

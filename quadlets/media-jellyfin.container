@@ -20,7 +20,7 @@ Annotation=run.oci.keep_groups=true
 
 # SELinux: :Z for private config, :z for shared media directory
 Volume=%h/srv/@media/config/jellyfin:/config:Z
-Volume=%h/srv/@media/data:/data:z
+Volume=/mnt/storage/media:/data
 Network=media-internal.network
 
 PublishPort=8096:8096
