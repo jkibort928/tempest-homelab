@@ -85,12 +85,10 @@ def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: B
 
 # --- BACKGROUND TASK WORKERS ---
 def run_quick_download(job: dict, url: str, audio_url: str = None):
-    # Check if a playlist URL was accidentally pasted into quick download
     if "playlist" in url.lower() or (audio_url and "playlist" in audio_url.lower()):
-        append_log("WARNING: Playlist URL detected in Quick Download! Please use the 'Playlist Sync' tab instead.")
-        
-        # Strip the audio_url flag so it doesn't trigger forced overwrite on a full playlist
-        audio_url = None
+        append_log("REJECTED: Quick Download is for single tracks. Use the 'Playlist Sync' tab for playlists.")
+        job["status"] = "canceled"
+        return
 
     target = f"{audio_url}|{url}" if audio_url else url
     cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
