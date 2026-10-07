@@ -7,7 +7,7 @@ import re
 from spotdl.utils.formatter import sanitize_string
 
 # --- CONFIGURATION ---
-BASE_DIR = os.path.expanduser("~/srv/@music/data")
+BASE_DIR = "/mnt/storage/music"
 PLAYLIST_DIR = f"{BASE_DIR}/Playlists"
 SPOTIFY_DIR = f"{BASE_DIR}/Mainstream"
 NAVIDROME_MOUNT = "/music"

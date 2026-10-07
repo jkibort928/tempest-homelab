@@ -5,7 +5,7 @@ import subprocess
 import shutil
 
 # --- CONFIGURATION ---
-SPOTIFY_DIR = os.path.expanduser("~/srv/@music/data/Mainstream")
+SPOTIFY_DIR = "/mnt/storage/music/Mainstream"
 
 def process_missing_file(filepath):
     if not os.path.isfile(filepath):
