@@ -44,7 +44,7 @@ def run_cmd_logged(cmd, description: str, job: dict):
     append_log(f"--- START: {description} ---")
     with open(LOG_PATH, "a") as log_file:
         proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True, start_new_session=True)
-        job["proc"] = proc  # Store process reference on the job itself
+        job["proc"] = proc  # Store process reference directly on job object
         proc.wait()
         job["proc"] = None
 
@@ -74,7 +74,8 @@ def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: B
         "type": job_type,
         "title": title,
         "status": "queued",
-        "created_at": datetime.now().strftime("%H:%M:%S")
+        "created_at": datetime.now().strftime("%H:%M:%S"),
+        "proc": None
     }
     job_queue.append(job)
     background_tasks.add_task(run_serialized_job, job_id, task_func, *args)
@@ -147,9 +148,13 @@ async def main_page():
                 .queue-item { background: #242424; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
                 .queue-item.running { border-left: 4px solid #1DB954; }
                 .queue-item.queued { border-left: 4px solid #f39c12; }
+                .queue-item.completed { border-left: 4px solid #3498db; opacity: 0.7; }
+                .queue-item.canceled { border-left: 4px solid #e74c3c; opacity: 0.7; }
                 .badge { font-size: 10px; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
                 .badge-running { background: #1DB954; color: #000; }
                 .badge-queued { background: #f39c12; color: #000; }
+                .badge-completed { background: #3498db; color: #fff; }
+                .badge-canceled { background: #e74c3c; color: #fff; }
                 .cancel-btn { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
                 .cancel-btn:hover { background: #c0392b; }
             </style>
@@ -204,7 +209,10 @@ async def main_page():
 
                 <!-- SIDEBAR QUEUE -->
                 <div class="sidebar">
-                    <h3 style="margin-top:0; color:#1DB954; font-size:16px;">Execution Queue</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3 style="margin:0; color:#1DB954; font-size:16px;">Execution Queue</h3>
+                        <button onclick="clearHistory()" style="background:#333; color:#aaa; border:1px solid #444; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;">Clear History</button>
+                    </div>
                     <div id="queue-list"><p style="color:#777; font-size:13px;">No active or pending jobs.</p></div>
                 </div>
             </div>
@@ -247,6 +255,11 @@ async def main_page():
                     updateQueue();
                 }
 
+                async function clearHistory() {
+                    await fetch('/clear-history', { method: 'POST' });
+                    updateQueue();
+                }
+
                 async function updateQueue() {
                     const container = document.getElementById('queue-list');
                     try {
@@ -258,6 +271,7 @@ async def main_page():
                         }
                         let html = '';
                         jobs.forEach(j => {
+                            const isCancelable = j.status === 'queued' || j.status === 'running';
                             html += `
                                 <div class="queue-item ${j.status}">
                                     <div>
@@ -267,7 +281,7 @@ async def main_page():
                                         </div>
                                         <div style="font-size:13px; font-weight:bold; word-break:break-all;">${j.title}</div>
                                     </div>
-                                    <button class="cancel-btn" onclick="cancelJob('${j.id}')">Cancel</button>
+                                    ${isCancelable ? `<button class="cancel-btn" onclick="cancelJob('${j.id}')">Cancel</button>` : ''}
                                 </div>`;
                         });
                         container.innerHTML = html;
@@ -347,8 +361,18 @@ async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(
 
 @app.get("/queue")
 async def get_queue():
-    active_jobs = [j for j in job_queue if j["status"] in ("queued", "running")]
-    return JSONResponse(active_jobs)
+    # Sanitized list omitting non-serializable process objects
+    sanitized = [
+        {
+            "id": j["id"],
+            "type": j["type"],
+            "title": j["title"],
+            "status": j["status"],
+            "created_at": j["created_at"]
+        }
+        for j in job_queue
+    ]
+    return JSONResponse(sanitized)
 
 @app.post("/cancel/{job_id}")
 async def cancel_job(job_id: str):
@@ -356,7 +380,7 @@ async def cancel_job(job_id: str):
         if job["id"] == job_id:
             job["status"] = "canceled"
             proc = job.get("proc")
-            # Only kill process if this specific job owns the running process
+            # Only send SIGTERM if this specific job owns the running process
             if proc and proc.poll() is None:
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
@@ -365,6 +389,12 @@ async def cancel_job(job_id: str):
             cleanup_queue()
             return JSONResponse({"status": "canceled"})
     return JSONResponse({"error": "Job not found"}, status_code=404)
+
+@app.post("/clear-history")
+async def clear_history():
+    global job_queue
+    job_queue = [j for j in job_queue if j["status"] in ("queued", "running")]
+    return JSONResponse({"status": "cleared"})
 
 @app.get("/missing-tracks")
 async def get_missing_tracks():
