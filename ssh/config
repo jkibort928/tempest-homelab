@@ -1,3 +1,7 @@
+# ----------
+# Github
+# ----------
+
 Host github-mystuff
     HostName github.com
     User git
@@ -10,8 +14,58 @@ Host github-tempest-homelab
     IdentityFile ~/.ssh/id_deploy_homelab_config
     IdentitiesOnly yes
 
+# ----------
+# Homelab
+# ----------
+
 # Souei server via tailscale
 Host souei
-    HostName souei
+    HostName souei.tail837b46.ts.net
     User spoob
-    IdentityFile ~/.ssh/id_ed25519
+    IdentityFile ~/.ssh/tempestPass
+    IdentitiesOnly yes
+
+# Souei server via LAN
+Host souei.local
+    HostName souei.local
+    User spoob
+    IdentityFile ~/.ssh/tempestPass
+    IdentitiesOnly yes
+
+# ----------
+# Personal
+# ----------
+
+# Ciel desktop via tailscale
+Host ciel
+    HostName ciel.tail837b46.ts.net
+    User spoob
+    IdentityFile ~/.ssh/tempestPass
+    IdentitiesOnly yes
+
+# Ciel desktop via LAN
+Host ciel.local
+    HostName ciel.local
+    User spoob
+    IdentityFile ~/.ssh/tempestPass
+    IdentitiesOnly yes
+
+# Ciel BorgBackup
+Host cielBorg
+    HostName ciel
+    User spoob
+    IdentityFile ~/.ssh/cielBorg
+    IdentitiesOnly yes
+
+# Ciel on windows
+Host gobozo
+    HostName gobozo.tail837b46.ts.net
+    User Spoob
+    IdentityFile ~/.ssh/tempestPass
+    IdentitiesOnly yes
+
+# Pi via LAN
+Host pissh
+    HostName 10.0.0.16
+    User spoob
+    IdentityFile ~/.ssh/tempestPass
