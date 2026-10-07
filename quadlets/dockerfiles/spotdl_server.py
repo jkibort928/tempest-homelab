@@ -1,4 +1,3 @@
-import asyncio
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.background import BackgroundTasks
@@ -7,6 +6,8 @@ from datetime import datetime
 import os
 import glob
 import re
+import uuid
+import asyncio
 from collections import deque
 
 LOG_PATH = "/tmp/spotdl.log"
@@ -16,13 +17,10 @@ PLAYLIST_DIR = f"{MUSIC_DIR}/Playlists"
 
 app = FastAPI()
 
-# Ensures all background tasks run strictly one at a time (FIFO)
+# --- QUEUE & PROCESS MANAGEMENT ---
+job_queue = []
 job_lock = asyncio.Lock()
-
-async def run_serialized_job(task_func, *args):
-    #Enforces single-worker execution to prevent rate limits and log scrambling.
-    async with job_lock:
-        await asyncio.to_thread(task_func, *args)
+current_proc = None
 
 def append_log(text: str):
     if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
@@ -31,26 +29,61 @@ def append_log(text: str):
     with open(LOG_PATH, "a") as f:
         f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
 
-def run_cmd_logged(cmd, description: str):
+def run_cmd_logged(cmd, description: str, job: dict):
+    global current_proc
+    if job.get("status") == "canceled":
+        append_log(f"--- SKIPPED (CANCELED): {description} ---")
+        return
+
     append_log(f"--- START: {description} ---")
     with open(LOG_PATH, "a") as log_file:
-        subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True)
-    append_log(f"--- FINISHED: {description} ---\n")
+        proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True)
+        current_proc = proc
+        proc.wait()
+        current_proc = None
 
-# --- BACKGROUND TASKS ---
-def run_quick_download(url: str, audio_url: str = None):
+    if job.get("status") == "canceled":
+        append_log(f"--- CANCELED/TERMINATED: {description} ---\n")
+    else:
+        append_log(f"--- FINISHED: {description} ---\n")
+
+async def run_serialized_job(job_id: str, task_func, *args):
+    async with job_lock:
+        job = next((j for j in job_queue if j["id"] == job_id), None)
+        if not job or job["status"] == "canceled":
+            return
+
+        job["status"] = "running"
+        await asyncio.to_thread(task_func, job, *args)
+        if job["status"] == "running":
+            job["status"] = "completed"
+
+def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: BackgroundTasks):
+    job_id = str(uuid.uuid4())[:8]
+    job = {
+        "id": job_id,
+        "type": job_type,
+        "title": title,
+        "status": "queued",
+        "created_at": datetime.now().strftime("%H:%M:%S")
+    }
+    job_queue.append(job)
+    background_tasks.add_task(run_serialized_job, job_id, task_func, *args)
+    return job_id
+
+# --- BACKGROUND TASK WORKERS ---
+def run_quick_download(job: dict, url: str, audio_url: str = None):
     target = f"{audio_url}|{url}" if audio_url else url
     cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
     if audio_url:
         cmd.extend(["--overwrite", "force"])
-    run_cmd_logged(cmd, f"Single Track Download: {target}")
+    run_cmd_logged(cmd, f"Single Track Download: {target}", job)
 
-def task_import_playlist(name: str, url: str):
+def task_import_playlist(job: dict, name: str, url: str):
     cmd = ["python3", "/app/music-spot-initPlaylist.py", name, url]
-    run_cmd_logged(cmd, f"Playlist Import: {name}")
+    run_cmd_logged(cmd, f"Playlist Import: {name}", job)
 
-def task_resolve_single(spotify_url: str, youtube_url: str, playlist_name: str, playlist_url: str):
-    # Only supply youtube_url if populated, avoiding invalid pipe strings
+def task_resolve_single(job: dict, spotify_url: str, youtube_url: str, playlist_name: str, playlist_url: str):
     if youtube_url and youtube_url.strip():
         target = f"{youtube_url.strip()}|{spotify_url.strip()}"
         cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}", "--overwrite", "force"]
@@ -58,10 +91,10 @@ def task_resolve_single(spotify_url: str, youtube_url: str, playlist_name: str, 
         target = spotify_url.strip()
         cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
     
-    run_cmd_logged(cmd, f"Explicit Remap Download: {spotify_url}")
+    run_cmd_logged(cmd, f"Explicit Remap Download: {spotify_url}", job)
     
-    if playlist_name and playlist_url:
-        run_cmd_logged(["python3", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}")
+    if playlist_name and playlist_url and job.get("status") != "canceled":
+        run_cmd_logged(["python3", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}", job)
 
 # --- ROUTES ---
 @app.get("/", response_class=HTMLResponse)
@@ -74,10 +107,12 @@ async def main_page():
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body { background: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 20px; box-sizing: border-box; }
-                .container { max-width: 800px; margin: 0 auto; }
+                .layout { display: flex; gap: 20px; max-width: 1200px; margin: 0 auto; flex-wrap: wrap; }
+                .main-content { flex: 2; min-width: 320px; }
+                .sidebar { flex: 1; min-width: 280px; background: #181818; border-radius: 8px; border: 1px solid #282828; padding: 15px; height: fit-content; }
+                
                 h2 { color: #1DB954; text-align: center; margin-top: 0; }
                 
-                /* Nav Tabs */
                 .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #282828; }
                 .tab-btn { background: none; border: none; color: #aaa; font-weight: bold; padding: 10px 16px; cursor: pointer; font-size: 15px; }
                 .tab-btn.active { color: #1DB954; border-bottom: 3px solid #1DB954; }
@@ -91,84 +126,91 @@ async def main_page():
                 .missing-item { background: #222; border-left: 4px solid #e74c3c; padding: 12px; border-radius: 4px; margin-bottom: 10px; }
                 .missing-title { font-weight: bold; color: #fff; margin-bottom: 6px; }
                 
-                pre#log-box { background: #181818; padding: 15px; border-radius: 8px; overflow-y: auto; max-height: 300px; font-family: monospace; font-size: 13px; border: 1px solid #333; white-space: pre-wrap; margin: 0; }
+                pre#log-box { background: #181818; padding: 15px; border-radius: 8px; overflow-y: auto; max-height: 250px; font-family: monospace; font-size: 13px; border: 1px solid #333; white-space: pre-wrap; margin: 0; }
+                
+                /* Sidebar Queue Styles */
+                .queue-item { background: #242424; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+                .queue-item.running { border-left: 4px solid #1DB954; }
+                .queue-item.queued { border-left: 4px solid #f39c12; }
+                .badge { font-size: 10px; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
+                .badge-running { background: #1DB954; color: #000; }
+                .badge-queued { background: #f39c12; color: #000; }
+                .cancel-btn { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+                .cancel-btn:hover { background: #c0392b; }
             </style>
         </head>
         <body>
-            <div class="container">
-                <h2>Navidrome Spotify Importer</h2>
-
-                <!-- NAVIGATION TABS -->
-                <div class="tabs">
-                    <button class="tab-btn active" onclick="switchTab('quick')">Quick Download</button>
-                    <button class="tab-btn" onclick="switchTab('playlist')">Playlist Sync</button>
-                    <button class="tab-btn" onclick="switchTab('audit')">Missing Audit</button>
-                </div>
-
-                <!-- TAB 1: ORIGINAL QUICK DOWNLOAD -->
-                <div id="tab-quick" class="tab-content active">
-                    <form onsubmit="event.preventDefault(); submitForm('/download', this);">
-                        <label>Spotify URL</label>
-                        <input type="text" name="url" placeholder="Spotify Track / Album / Playlist URL..." required>
-                        <label>Explicit Audio URL (Optional Youtube/Audio Link)</label>
-                        <input type="text" name="audio_url" placeholder="https://www.youtube.com/watch?v=...">
-                        <button type="submit" class="submit-btn">Download to Server</button>
-                    </form>
-                </div>
-
-                <!-- TAB 2: PLAYLIST INGESTION -->
-                <div id="tab-playlist" class="tab-content">
-                    <form onsubmit="event.preventDefault(); submitForm('/import-playlist', this);">
-                        <label>Playlist Name</label>
-                        <input type="text" name="name" placeholder="e.g. Gym Mix 2026" required>
-                        <label>Spotify Playlist URL</label>
-                        <input type="text" name="url" placeholder="https://open.spotify.com/playlist/..." required>
-                        <button type="submit" class="submit-btn">Import & Generate .M3U</button>
-                    </form>
-                </div>
-
-                <!-- TAB 3: MISSING AUDIT -->
-                <div id="tab-audit" class="tab-content">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <h3 style="margin:0;">Unresolved Playlist Tracks</h3>
-                        <button onclick="loadMissingTracks()" style="background:#333; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">Refresh</button>
+            <h2>Navidrome Spotify Importer</h2>
+            <div class="layout">
+                <!-- MAIN CONTENT AREA -->
+                <div class="main-content">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchTab('quick', event)">Quick Download</button>
+                        <button class="tab-btn" onclick="switchTab('playlist', event)">Playlist Sync</button>
+                        <button class="tab-btn" onclick="switchTab('audit', event)">Missing Audit</button>
                     </div>
-                    <div id="missing-list">Loading audit...</div>
+
+                    <div id="tab-quick" class="tab-content active">
+                        <form onsubmit="event.preventDefault(); submitForm('/download', this);">
+                            <label>Spotify URL</label>
+                            <input type="text" name="url" placeholder="Spotify Track / Album / Playlist URL..." required>
+                            <label>Explicit Audio URL (Optional Youtube/Audio Link)</label>
+                            <input type="text" name="audio_url" placeholder="https://www.youtube.com/watch?v=...">
+                            <button type="submit" class="submit-btn">Download to Server</button>
+                        </form>
+                    </div>
+
+                    <div id="tab-playlist" class="tab-content">
+                        <form onsubmit="event.preventDefault(); submitForm('/import-playlist', this);">
+                            <label>Playlist Name</label>
+                            <input type="text" name="name" placeholder="e.g. Gym Mix 2026" required>
+                            <label>Spotify Playlist URL</label>
+                            <input type="text" name="url" placeholder="https://open.spotify.com/playlist/..." required>
+                            <button type="submit" class="submit-btn">Import & Generate .M3U</button>
+                        </form>
+                    </div>
+
+                    <div id="tab-audit" class="tab-content">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                            <h3 style="margin:0;">Unresolved Playlist Tracks</h3>
+                            <button onclick="loadMissingTracks()" style="background:#333; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">Refresh</button>
+                        </div>
+                        <div id="missing-list">Loading audit...</div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between;">
+                            Live Terminal Output
+                            <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText);" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
+                        </h4>
+                        <pre id="log-box">Waiting for output...</pre>
+                    </div>
                 </div>
 
-                <!-- LIVE LOG OUTPUT -->
-                <div style="margin-top: 20px;">
-                    <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between;">
-                        Live Terminal Output
-                        <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText); alert('Copied!');" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
-                    </h4>
-                    <pre id="log-box">Waiting for output...</pre>
+                <!-- SIDEBAR QUEUE -->
+                <div class="sidebar">
+                    <h3 style="margin-top:0; color:#1DB954; font-size:16px;">Execution Queue</h3>
+                    <div id="queue-list"><p style="color:#777; font-size:13px;">No active or pending jobs.</p></div>
                 </div>
             </div>
 
             <script>
-                function switchTab(tabName) {
+                function switchTab(tabName, evt) {
                     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                     
-                    event.target.classList.add('active');
+                    evt.target.classList.add('active');
                     document.getElementById('tab-' + tabName).classList.add('active');
                     if (tabName === 'audit') loadMissingTracks();
                 }
 
                 async function submitForm(endpoint, form) {
-                    const btn = form.querySelector('button');
-                    btn.disabled = true;
-                    btn.style.background = '#444';
                     try {
                         await fetch(endpoint, { method: 'POST', body: new FormData(form) });
-                        alert('Job dispatched to background queue!');
                         form.reset();
+                        updateQueue();
                     } catch (e) {
                         alert('Connection error occurred.');
-                    } finally {
-                        btn.disabled = false;
-                        btn.style.background = '#1DB954';
                     }
                 }
 
@@ -181,8 +223,40 @@ async def main_page():
                     body.append('playlist_url', playlistUrl);
 
                     await fetch('/resolve-missing', { method: 'POST', body: body });
-                    alert('Download queued! Check logs for progress.');
+                    updateQueue();
                     setTimeout(loadMissingTracks, 3000);
+                }
+
+                async function cancelJob(jobId) {
+                    await fetch('/cancel/' + jobId, { method: 'POST' });
+                    updateQueue();
+                }
+
+                async function updateQueue() {
+                    const container = document.getElementById('queue-list');
+                    try {
+                        const res = await fetch('/queue');
+                        const jobs = await res.json();
+                        if (!jobs || jobs.length === 0) {
+                            container.innerHTML = '<p style="color:#777; font-size:13px;">No active or pending jobs.</p>';
+                            return;
+                        }
+                        let html = '';
+                        jobs.forEach(j => {
+                            html += `
+                                <div class="queue-item ${j.status}">
+                                    <div>
+                                        <div style="font-size:11px; margin-bottom:4px;">
+                                            <span class="badge badge-${j.status}">${j.status}</span>
+                                            <span style="color:#888; margin-left:5px;">${j.created_at}</span>
+                                        </div>
+                                        <div style="font-size:13px; font-weight:bold; word-break:break-all;">${j.title}</div>
+                                    </div>
+                                    <button class="cancel-btn" onclick="cancelJob('${j.id}')">Cancel</button>
+                                </div>`;
+                        });
+                        container.innerHTML = html;
+                    } catch (e) {}
                 }
 
                 async function loadMissingTracks() {
@@ -229,29 +303,51 @@ async def main_page():
                     } catch (e) {}
                 }
 
-                setInterval(updateLogs, 3000);
+                setInterval(() => {
+                    updateLogs();
+                    updateQueue();
+                }, 2000);
+
                 updateLogs();
+                updateQueue();
             </script>
         </body>
     </html>
     """
 
-# --- ROUTES ---
-
-@app.post("/download", response_class=HTMLResponse)
+@app.post("/download")
 async def start_download(url: str = Form(...), audio_url: str = Form(None), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(run_serialized_job, run_quick_download, url, audio_url)
-    return PlainTextResponse("Dispatched")
+    enqueue_job("download", f"Single Download: {url}", run_quick_download, url, audio_url, background_tasks=background_tasks)
+    return PlainTextResponse("Enqueued")
 
 @app.post("/import-playlist")
 async def import_playlist(name: str = Form(...), url: str = Form(...), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(run_serialized_job, task_import_playlist, name, url)
+    enqueue_job("playlist", f"Playlist: {name}", task_import_playlist, name, url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
 @app.post("/resolve-missing")
 async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(""), playlist_name: str = Form(""), playlist_url: str = Form(""), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(run_serialized_job, task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url)
+    enqueue_job("remap", f"Remap: {spotify_url}", task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
+
+@app.get("/queue")
+async def get_queue():
+    active_jobs = [j for j in job_queue if j["status"] in ("queued", "running")]
+    return JSONResponse(active_jobs)
+
+@app.post("/cancel/{job_id}")
+async def cancel_job(job_id: str):
+    global current_proc
+    for job in job_queue:
+        if job["id"] == job_id:
+            if job["status"] == "queued":
+                job["status"] = "canceled"
+            elif job["status"] == "running":
+                job["status"] = "canceled"
+                if current_proc and current_proc.poll() is None:
+                    current_proc.terminate()
+            return JSONResponse({"status": "canceled"})
+    return JSONResponse({"error": "Job not found"}, status_code=404)
 
 @app.get("/missing-tracks")
 async def get_missing_tracks():
