@@ -8,6 +8,7 @@ import glob
 import re
 import uuid
 import asyncio
+import signal
 from collections import deque
 
 LOG_PATH = "/tmp/spotdl.log"
@@ -21,6 +22,13 @@ app = FastAPI()
 job_queue = []
 job_lock = asyncio.Lock()
 current_proc = None
+
+def cleanup_queue():
+    """Retains active jobs and trims history to the last 20 completed/canceled entries."""
+    global job_queue
+    active = [j for j in job_queue if j["status"] in ("queued", "running")]
+    history = [j for j in job_queue if j["status"] in ("completed", "canceled")][-20:]
+    job_queue = active + history
 
 def append_log(text: str):
     if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
@@ -37,7 +45,8 @@ def run_cmd_logged(cmd, description: str, job: dict):
 
     append_log(f"--- START: {description} ---")
     with open(LOG_PATH, "a") as log_file:
-        proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True)
+        # start_new_session=True gives child its own Process Group ID so cancel_job doesn't kill FastAPI
+        proc = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, text=True, start_new_session=True)
         current_proc = proc
         proc.wait()
         current_proc = None
@@ -51,12 +60,15 @@ async def run_serialized_job(job_id: str, task_func, *args):
     async with job_lock:
         job = next((j for j in job_queue if j["id"] == job_id), None)
         if not job or job["status"] == "canceled":
+            cleanup_queue()
             return
 
         job["status"] = "running"
         await asyncio.to_thread(task_func, job, *args)
         if job["status"] == "running":
             job["status"] = "completed"
+        
+        cleanup_queue()
 
 def enqueue_job(job_type: str, title: str, task_func, *args, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())[:8]
@@ -340,12 +352,13 @@ async def cancel_job(job_id: str):
     global current_proc
     for job in job_queue:
         if job["id"] == job_id:
-            if job["status"] == "queued":
-                job["status"] = "canceled"
-            elif job["status"] == "running":
-                job["status"] = "canceled"
-                if current_proc and current_proc.poll() is None:
-                    current_proc.terminate()
+            job["status"] = "canceled"
+            if current_proc and current_proc.poll() is None:
+                try:
+                    os.killpg(os.getpgid(current_proc.pid), signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            cleanup_queue()
             return JSONResponse({"status": "canceled"})
     return JSONResponse({"error": "Job not found"}, status_code=404)
 
