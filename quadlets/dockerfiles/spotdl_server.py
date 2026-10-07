@@ -1,83 +1,160 @@
-from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.background import BackgroundTasks
 import subprocess
 from datetime import datetime
 import os
+import glob
+import re
 from collections import deque
 
 LOG_PATH = "/tmp/spotdl.log"
+MUSIC_DIR = "/music"
+SPOTIFY_DIR = f"{MUSIC_DIR}/Mainstream"
+PLAYLIST_DIR = f"{MUSIC_DIR}/Playlists"
 
 app = FastAPI()
 
-def run_download(url: str, audio_url: str = None):
-    log_path = "/tmp/spotdl.log"
-    
-    if os.path.exists(log_path) and os.path.getsize(log_path) > 1_000_000:
-        with open(log_path, "w") as f:
-            f.write("=== LOG AUTOMATICALLY ROTATED TO CONSERVE SPACE ===\n")
+def append_log(text: str):
+    if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
+        with open(LOG_PATH, "w") as f:
+            f.write("=== LOG ROTATED ===\n")
+    with open(LOG_PATH, "a") as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
 
+def run_cmd_logged(cmd, description: str):
+    append_log(f"--- START: {description} ---")
+    with open(LOG_PATH, "a") as log_file:
+        subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True)
+    append_log(f"--- FINISHED: {description} ---\n")
+
+# --- BACKGROUND TASKS ---
+def run_quick_download(url: str, audio_url: str = None):
     target = f"{audio_url}|{url}" if audio_url else url
-    
-    cmd = ["spotdl", "download", target, "--output", "/music/{artist} - {title}"]
+    cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
     if audio_url:
         cmd.extend(["--overwrite", "force"])
+    run_cmd_logged(cmd, f"Single Track Download: {target}")
 
-    with open(log_path, "a") as log_file:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_file.write(f"\n\n========================================\n")
-        log_file.write(f"QUEUE JOB STARTED AT: {timestamp}\n")
-        log_file.write(f"TARGET: {target}\n")
-        if audio_url:
-            log_file.write(f"MODE: Explicit Audio Remap (Force Overwrite)\n")
-        log_file.write(f"========================================\n\n")
-        log_file.flush()
+def task_import_playlist(name: str, url: str):
+    cmd = ["python3", "/app/music-spot-initPlaylist.py", name, url]
+    run_cmd_logged(cmd, f"Playlist Import: {name}")
 
-        subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True)
+def task_resolve_single(spotify_url: str, youtube_url: str, playlist_name: str, playlist_url: str):
+    # Only supply youtube_url if populated, avoiding invalid pipe strings
+    if youtube_url and youtube_url.strip():
+        target = f"{youtube_url.strip()}|{spotify_url.strip()}"
+        cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}", "--overwrite", "force"]
+    else:
+        target = spotify_url.strip()
+        cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
+    
+    run_cmd_logged(cmd, f"Explicit Remap Download: {spotify_url}")
+    
+    if playlist_name and playlist_url:
+        run_cmd_logged(["python3", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}")
 
+# --- ROUTES ---
 @app.get("/", response_class=HTMLResponse)
 async def main_page():
     return """
+    <!DOCTYPE html>
     <html>
         <head>
-            <title>Spotify Downloader</title>
+            <title>Navidrome Spotify Importer</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="background:#121212; color:white; font-family:sans-serif; margin:0; padding:20px; display:flex; flex-direction:column; height:100vh; box-sizing:border-box;">
-            
-            <div style="flex:0 0 auto; text-align:center; padding-bottom:20px;">
-                <h2 style="color:#1DB954; font-size:24px; margin:0 0 15px 0;">Navidrome Spotify Importer</h2>
+            <style>
+                body { background: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 20px; box-sizing: border-box; }
+                .container { max-width: 800px; margin: 0 auto; }
+                h2 { color: #1DB954; text-align: center; margin-top: 0; }
                 
-                <form onsubmit="event.preventDefault(); startDownload(this);" style="display:flex; flex-direction:column; align-items:center; gap:12px; width:100%;">
-                    <div style="width:100%; max-width:500px; text-align:left;">
-                        <input type="text" name="url" style="width:100%; padding:12px; font-size:16px; border-radius:8px; border:1px solid #333; background:#181818; color:white; box-sizing:border-box;" placeholder="Spotify URL..." required>
+                /* Nav Tabs */
+                .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #282828; }
+                .tab-btn { background: none; border: none; color: #aaa; font-weight: bold; padding: 10px 16px; cursor: pointer; font-size: 15px; }
+                .tab-btn.active { color: #1DB954; border-bottom: 3px solid #1DB954; }
+                .tab-content { display: none; background: #181818; padding: 20px; border-radius: 8px; border: 1px solid #282828; margin-bottom: 20px; }
+                .tab-content.active { display: block; }
+
+                label { display: block; font-size: 13px; color: #b3b3b3; margin-bottom: 5px; font-weight: bold; }
+                input[type="text"] { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 1px solid #333; background: #242424; color: white; box-sizing: border-box; margin-bottom: 12px; }
+                button.submit-btn { padding: 12px 24px; font-size: 15px; background: #1DB954; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; width: 100%; }
+                
+                .missing-item { background: #222; border-left: 4px solid #e74c3c; padding: 12px; border-radius: 4px; margin-bottom: 10px; }
+                .missing-title { font-weight: bold; color: #fff; margin-bottom: 6px; }
+                
+                pre#log-box { background: #181818; padding: 15px; border-radius: 8px; overflow-y: auto; max-height: 300px; font-family: monospace; font-size: 13px; border: 1px solid #333; white-space: pre-wrap; margin: 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Navidrome Spotify Importer</h2>
+
+                <!-- NAVIGATION TABS -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('quick')">Quick Download</button>
+                    <button class="tab-btn" onclick="switchTab('playlist')">Playlist Sync</button>
+                    <button class="tab-btn" onclick="switchTab('audit')">Missing Audit</button>
+                </div>
+
+                <!-- TAB 1: ORIGINAL QUICK DOWNLOAD -->
+                <div id="tab-quick" class="tab-content active">
+                    <form onsubmit="event.preventDefault(); submitForm('/download', this);">
+                        <label>Spotify URL</label>
+                        <input type="text" name="url" placeholder="Spotify Track / Album / Playlist URL..." required>
+                        <label>Explicit Audio URL (Optional Youtube/Audio Link)</label>
+                        <input type="text" name="audio_url" placeholder="https://www.youtube.com/watch?v=...">
+                        <button type="submit" class="submit-btn">Download to Server</button>
+                    </form>
+                </div>
+
+                <!-- TAB 2: PLAYLIST INGESTION -->
+                <div id="tab-playlist" class="tab-content">
+                    <form onsubmit="event.preventDefault(); submitForm('/import-playlist', this);">
+                        <label>Playlist Name</label>
+                        <input type="text" name="name" placeholder="e.g. Gym Mix 2026" required>
+                        <label>Spotify Playlist URL</label>
+                        <input type="text" name="url" placeholder="https://open.spotify.com/playlist/..." required>
+                        <button type="submit" class="submit-btn">Import & Generate .M3U</button>
+                    </form>
+                </div>
+
+                <!-- TAB 3: MISSING AUDIT -->
+                <div id="tab-audit" class="tab-content">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 style="margin:0;">Unresolved Playlist Tracks</h3>
+                        <button onclick="loadMissingTracks()" style="background:#333; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">Refresh</button>
                     </div>
-                    <div style="width:100%; max-width:500px; text-align:left;">
-                        <input type="text" name="audio_url" style="width:100%; padding:12px; font-size:16px; border-radius:8px; border:1px solid #333; background:#181818; color:white; box-sizing:border-box;" placeholder="Explicit Audio URL (Optional)...">
-                    </div>
-                    <button type="submit" style="padding:12px 24px; font-size:16px; background:#1DB954; color:white; border:none; border-radius:25px; font-weight:bold; cursor:pointer;">Download to Server</button>
-                </form>
-            </div>
-            
-            <div style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0;">
-                <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between; align-items:center;">
-                    Live Terminal Output 
-                    <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText); alert('Copied!');" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
-                </h4>
-                <pre id="log-box" style="flex:1; background:#181818; padding:15px; border-radius:8px; text-align:left; overflow-y:auto; white-space:pre-wrap; font-size:13px; border:1px solid #333; margin:0; font-family:monospace;"></pre>
+                    <div id="missing-list">Loading audit...</div>
+                </div>
+
+                <!-- LIVE LOG OUTPUT -->
+                <div style="margin-top: 20px;">
+                    <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between;">
+                        Live Terminal Output
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText); alert('Copied!');" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
+                    </h4>
+                    <pre id="log-box">Waiting for output...</pre>
+                </div>
             </div>
 
             <script>
-                // Submit form silently using AJAX background fetch
-                async function startDownload(form) {
+                function switchTab(tabName) {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    event.target.classList.add('active');
+                    document.getElementById('tab-' + tabName).classList.add('active');
+                    if (tabName === 'audit') loadMissingTracks();
+                }
+
+                async function submitForm(endpoint, form) {
                     const btn = form.querySelector('button');
                     btn.disabled = true;
                     btn.style.background = '#444';
                     try {
-                        await fetch('/download', { method: 'POST', body: new FormData(form) });
-                        alert('Job dispatched to background queue successfully!');
-                        form.querySelector('input[name="url"]').value = '';
-                        form.querySelector('input[name="audio_url"]').value = '';
+                        await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+                        alert('Job dispatched to background queue!');
+                        form.reset();
                     } catch (e) {
                         alert('Connection error occurred.');
                     } finally {
@@ -86,25 +163,63 @@ async def main_page():
                     }
                 }
 
-                // Handle Asynchronous Log updates with Smart Autoscroll locks
+                async function resolveMissing(spotifyUrl, ytInputId, playlistName, playlistUrl) {
+                    const ytUrl = document.getElementById(ytInputId).value;
+                    const body = new FormData();
+                    body.append('spotify_url', spotifyUrl);
+                    body.append('youtube_url', ytUrl);
+                    body.append('playlist_name', playlistName);
+                    body.append('playlist_url', playlistUrl);
+
+                    await fetch('/resolve-missing', { method: 'POST', body: body });
+                    alert('Download queued! Check logs for progress.');
+                    setTimeout(loadMissingTracks, 3000);
+                }
+
+                async function loadMissingTracks() {
+                    const container = document.getElementById('missing-list');
+                    try {
+                        const res = await fetch('/missing-tracks');
+                        const data = await res.json();
+                        if (Object.keys(data).length === 0) {
+                            container.innerHTML = '<p style="color:#1DB954;">All playlists 100% matched!</p>';
+                            return;
+                        }
+                        let html = '';
+                        let inputIdx = 0;
+                        for (const [file, items] of Object.entries(data)) {
+                            html += `<h4 style="color:#1DB954;">${items.name} (${items.tracks.length} missing)</h4>`;
+                            items.tracks.forEach(t => {
+                                const id = 'yt_input_' + inputIdx++;
+                                html += `
+                                    <div class="missing-item">
+                                        <div class="missing-title">${t.track_info}</div>
+                                        <div style="display:flex; gap:8px;">
+                                            <input type="text" id="${id}" placeholder="Paste YouTube URL override..." style="margin:0; flex:1;">
+                                            <button onclick="resolveMissing('${t.spotify_url}', '${id}', '${items.name}', '${items.spotify_playlist_url}')" style="background:#1DB954; color:black; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;">Download</button>
+                                        </div>
+                                    </div>`;
+                            });
+                        }
+                        container.innerHTML = html;
+                    } catch (e) {
+                        container.innerHTML = '<p style="color:red;">Error loading missing reports.</p>';
+                    }
+                }
+
                 async function updateLogs() {
                     const box = document.getElementById('log-box');
                     try {
                         let res = await fetch('/log-text');
                         let text = await res.text();
-                        
-                        // Check if user is scrolled near the bottom (with a 40px padding buffer)
                         const isAtBottom = (box.scrollHeight - box.clientHeight) <= (box.scrollTop + 40);
-                        
                         if (box.innerText !== text) {
                             box.innerText = text;
-                            // Only autoscroll down if the user wasn't actively reviewing history up top
-                            if (isAtBottom) {
-                                box.scrollTop = box.scrollHeight;
-                            }
+                            if (isAtBottom) box.scrollTop = box.scrollHeight;
                         }
                     } catch (e) {}
                 }
+
                 setInterval(updateLogs, 3000);
                 updateLogs();
             </script>
@@ -114,8 +229,48 @@ async def main_page():
 
 @app.post("/download", response_class=HTMLResponse)
 async def start_download(url: str = Form(...), audio_url: str = Form(None), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(run_download, url, audio_url)
+    background_tasks.add_task(run_quick_download, url, audio_url)
     return PlainTextResponse("Dispatched")
+
+@app.post("/import-playlist")
+async def import_playlist(name: str = Form(...), url: str = Form(...), background_tasks: BackgroundTasks = None):
+    background_tasks.add_task(task_import_playlist, name, url)
+    return PlainTextResponse("Enqueued")
+
+@app.post("/resolve-missing")
+async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(""), playlist_name: str = Form(""), playlist_url: str = Form(""), background_tasks: BackgroundTasks = None):
+    background_tasks.add_task(task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url)
+    return PlainTextResponse("Enqueued")
+
+@app.get("/missing-tracks")
+async def get_missing_tracks():
+    missing_files = glob.glob(f"{PLAYLIST_DIR}/missing_*.txt")
+    result = {}
+    
+    for filepath in missing_files:
+        filename = os.path.basename(filepath)
+        match = re.search(r'missing_(.+) \[(.+)\]\.txt', filename)
+        playlist_name = match.group(1) if match else filename
+        playlist_id = match.group(2) if match else ""
+        spotify_playlist_url = f"https://open.spotify.com/playlist/{playlist_id}" if playlist_id else ""
+
+        tracks = []
+        with open(filepath, 'r') as f:
+            for line in f:
+                if line.startswith("---") or line.startswith("Format:") or not line.strip():
+                    continue
+                if "|" in line:
+                    info, url = line.strip().split("|", 1)
+                    tracks.append({"track_info": info, "spotify_url": url})
+
+        if tracks:
+            result[filename] = {
+                "name": playlist_name,
+                "spotify_playlist_url": spotify_playlist_url,
+                "tracks": tracks
+            }
+
+    return JSONResponse(result)
 
 @app.get("/log-text", response_class=PlainTextResponse)
 async def log_text():
@@ -123,4 +278,4 @@ async def log_text():
         with open(LOG_PATH, "r") as f:
             return "".join(deque(f, maxlen=100))
     except FileNotFoundError:
-        return "No active or recent downloads found."
+        return "No active or recent operations logged."
