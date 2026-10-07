@@ -38,7 +38,6 @@ def fetch_spotify_playlist_title(url: str) -> str:
             match = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', page_html, re.IGNORECASE)
             if match:
                 raw_title = match.group(1)
-                # Strip Spotify brand trailing suffixes
                 clean_title = re.sub(r'\s*\|\s*Spotify$', '', raw_title, flags=re.IGNORECASE).strip()
                 return html_lib.unescape(clean_title)
 
@@ -51,7 +50,6 @@ def fetch_spotify_playlist_title(url: str) -> str:
     except Exception as e:
         append_log(f"Auto-fetch playlist title failed: {e}")
 
-    # Final fallback if title extraction failed
     playlist_id = url.split("playlist/")[-1].split("?")[0] if "playlist/" in url else "Import"
     return f"Spotify Playlist ({playlist_id[:6]})"
 
@@ -127,16 +125,20 @@ def task_import_playlist(job: dict, name: str, url: str):
     cmd = ["python3", "/app/music-spot-initPlaylist.py", name, url]
     run_cmd_logged(cmd, f"Playlist Import: {name}", job)
 
-def task_resolve_single(job: dict, spotify_url: str, youtube_url: str, playlist_name: str, playlist_url: str):
-    if youtube_url and youtube_url.strip():
-        target = f"{youtube_url.strip()}|{spotify_url.strip()}"
+def task_resolve_batch(job: dict, items: list, playlist_name: str, playlist_url: str):
+    total = len(items)
+    for idx, item in enumerate(items, 1):
+        if job.get("status") == "canceled":
+            break
+        spotify_url = item.get("spotify_url", "").strip()
+        youtube_url = item.get("youtube_url", "").strip()
+        if not spotify_url or not youtube_url:
+            continue
+
+        target = f"{youtube_url}|{spotify_url}"
         cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}", "--overwrite", "force"]
-    else:
-        target = spotify_url.strip()
-        cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
-    
-    run_cmd_logged(cmd, f"Explicit Remap Download: {spotify_url}", job)
-    
+        run_cmd_logged(cmd, f"Remap Track ({idx}/{total}): {spotify_url}", job)
+
     if playlist_name and playlist_url and job.get("status") != "canceled":
         run_cmd_logged(["python3", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}", job)
 
@@ -167,6 +169,7 @@ async def main_page():
                 input[type="text"] { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 1px solid #333; background: #242424; color: white; box-sizing: border-box; margin-bottom: 12px; }
                 button.submit-btn { padding: 12px 24px; font-size: 15px; background: #1DB954; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; width: 100%; }
                 
+                .playlist-card { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
                 .missing-item { background: #222; border-left: 4px solid #e74c3c; padding: 12px; border-radius: 4px; margin-bottom: 10px; }
                 .missing-title { font-weight: bold; color: #fff; margin-bottom: 6px; }
                 
@@ -227,9 +230,12 @@ async def main_page():
                     </div>
 
                     <div style="margin-top: 20px;">
-                        <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between;">
-                            Live Terminal Output
-                            <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText);" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
+                        <h4 style="margin:5px 0; color:#aaa; font-family:monospace; display:flex; justify-content:space-between; align-items:center;">
+                            <span>Live Terminal Output</span>
+                            <div>
+                                <button onclick="navigator.clipboard.writeText(document.getElementById('log-box').innerText);" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Copy</button>
+                                <button onclick="clearLog()" style="background:#333; color:white; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; margin-left:5px;">Clear</button>
+                            </div>
                         </h4>
                         <pre id="log-box">Waiting for output...</pre>
                     </div>
@@ -270,17 +276,66 @@ async def main_page():
                     }
                 }
 
-                async function resolveMissing(spotifyUrl, ytInputId, playlistName, playlistUrl) {
-                    const ytUrl = document.getElementById(ytInputId).value;
-                    const body = new FormData();
-                    body.append('spotify_url', spotifyUrl);
-                    body.append('youtube_url', ytUrl);
-                    body.append('playlist_name', playlistName);
-                    body.append('playlist_url', playlistUrl);
+                async function submitBatchResolution(btn, playlistIdx) {
+                    const card = btn.closest('.playlist-card');
+                    const name = decodeURIComponent(btn.getAttribute('data-name'));
+                    const url = decodeURIComponent(btn.getAttribute('data-url'));
+                    const inputs = card.querySelectorAll('.yt-override-input');
+                    const msg = document.getElementById('msg_' + playlistIdx);
 
-                    await fetch('/resolve-missing', { method: 'POST', body: body });
-                    updateQueue();
-                    setTimeout(loadMissingTracks, 3000);
+                    const items = [];
+                    inputs.forEach(input => {
+                        const yt = input.value.trim();
+                        const spotify = input.getAttribute('data-spotify');
+                        if (yt) {
+                            items.push({ spotify_url: spotify, youtube_url: yt });
+                        }
+                    });
+
+                    if (items.length === 0) {
+                        alert("Please enter at least one YouTube override URL before confirming.");
+                        return;
+                    }
+
+                    // Disable button & change style
+                    btn.disabled = true;
+                    btn.style.background = '#555';
+                    btn.style.cursor = 'not-allowed';
+                    btn.innerText = 'Submitted to Queue';
+                    msg.style.color = '#3498db';
+                    msg.innerText = 'Overrides queued! Refresh unresolved list to re-enable button after processing.';
+
+                    try {
+                        const res = await fetch('/resolve-batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                playlist_name: name,
+                                playlist_url: url,
+                                items: items
+                            })
+                        });
+
+                        if (!res.ok) {
+                            const err = await res.json();
+                            alert("Error: " + (err.error || "Failed to submit batch."));
+                            btn.disabled = false;
+                            btn.style.background = '#3498db';
+                            btn.style.cursor = 'pointer';
+                            btn.innerText = 'Confirm & Queue Overrides';
+                            msg.innerText = '';
+                            return;
+                        }
+
+                        updateQueue();
+                    } catch (e) {
+                        alert('Connection error occurred.');
+                        btn.disabled = false;
+                        btn.style.background = '#3498db';
+                        btn.style.cursor = 'pointer';
+                        btn.innerText = 'Confirm & Queue Overrides';
+                        msg.innerText = '';
+                    }
                 }
 
                 async function cancelJob(jobId) {
@@ -291,6 +346,15 @@ async def main_page():
                 async function clearHistory() {
                     await fetch('/clear-history', { method: 'POST' });
                     updateQueue();
+                }
+
+                async function clearLog() {
+                    try {
+                        await fetch('/clear-log', { method: 'POST' });
+                        document.getElementById('log-box').innerText = 'Log cleared.';
+                    } catch (e) {
+                        alert('Failed to clear log.');
+                    }
                 }
 
                 async function updateQueue() {
@@ -331,20 +395,32 @@ async def main_page():
                             return;
                         }
                         let html = '';
-                        let inputIdx = 0;
+                        let playlistIdx = 0;
                         for (const [file, items] of Object.entries(data)) {
-                            html += `<h4 style="color:#1DB954;">${items.name} (${items.tracks.length} missing)</h4>`;
-                            items.tracks.forEach(t => {
-                                const id = 'yt_input_' + inputIdx++;
+                            html += `
+                                <div class="playlist-card">
+                                    <h4 style="color:#1DB954; margin-top:0;">${items.name} (${items.tracks.length} missing)</h4>`;
+                            
+                            items.tracks.forEach((t, trackIdx) => {
                                 html += `
                                     <div class="missing-item">
                                         <div class="missing-title">${t.track_info}</div>
-                                        <div style="display:flex; gap:8px;">
-                                            <input type="text" id="${id}" placeholder="Paste YouTube URL override..." style="margin:0; flex:1;">
-                                            <button onclick="resolveMissing('${t.spotify_url}', '${id}', '${items.name}', '${items.spotify_playlist_url}')" style="background:#1DB954; color:black; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;">Download</button>
-                                        </div>
+                                        <input type="text" class="yt-override-input" data-spotify="${t.spotify_url}" placeholder="Paste YouTube URL override (optional)..." style="margin:0;">
                                     </div>`;
                             });
+
+                            html += `
+                                    <div style="margin-top:15px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                                        <button onclick="submitBatchResolution(this, ${playlistIdx})" 
+                                            data-name="${encodeURIComponent(items.name)}" 
+                                            data-url="${encodeURIComponent(items.spotify_playlist_url)}"
+                                            style="background:#3498db; color:white; border:none; padding:10px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:14px; transition: background 0.2s;">
+                                            Confirm & Queue Overrides
+                                        </button>
+                                        <span id="msg_${playlistIdx}" style="font-size:13px; color:#aaa;"></span>
+                                    </div>
+                                </div>`;
+                            playlistIdx++;
                         }
                         container.innerHTML = html;
                     } catch (e) {
@@ -391,15 +467,12 @@ async def import_playlist(name: str = Form(""), url: str = Form(...), background
     clean_name = name.strip()
     clean_url = url.strip()
 
-    # Protection 1: Check if URL was pasted into Name field
     if re.search(r'https?://', clean_name) or "spotify.com" in clean_name.lower():
         return JSONResponse({"error": "Playlist Name cannot be a URL! Leave it blank to auto-fetch the playlist title."}, status_code=400)
 
-    # Protection 2: Check for valid Spotify Playlist URL
     if "spotify.com/playlist" not in clean_url.lower():
-        return JSONResponse({"error": "Playlist URL must be a valid Spotify Playlist link (e.g., open.spotify.com/playlist/...). Track/album links are not allowed here."}, status_code=400)
+        return JSONResponse({"error": "Playlist URL must be a valid Spotify Playlist link. Track/album links are not allowed here."}, status_code=400)
 
-    # Auto-fetch title if blank
     if not clean_name:
         clean_name = fetch_spotify_playlist_title(clean_url)
         append_log(f"Auto-detected playlist name: '{clean_name}'")
@@ -407,10 +480,33 @@ async def import_playlist(name: str = Form(""), url: str = Form(...), background
     enqueue_job("playlist", f"Playlist: {clean_name}", task_import_playlist, clean_name, clean_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
-@app.post("/resolve-missing")
-async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(""), playlist_name: str = Form(""), playlist_url: str = Form(""), background_tasks: BackgroundTasks = None):
-    enqueue_job("remap", f"Remap: {spotify_url}", task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url, background_tasks=background_tasks)
-    return PlainTextResponse("Enqueued")
+@app.post("/resolve-batch")
+async def resolve_batch(request: Request, background_tasks: BackgroundTasks = None):
+    data = await request.json()
+    playlist_name = data.get("playlist_name", "").strip()
+    playlist_url = data.get("playlist_url", "").strip()
+    raw_items = data.get("items", [])
+
+    valid_items = []
+    for item in raw_items:
+        s_url = item.get("spotify_url", "").strip()
+        y_url = item.get("youtube_url", "").strip()
+        if s_url and y_url:
+            valid_items.append({"spotify_url": s_url, "youtube_url": y_url})
+
+    if not valid_items:
+        return JSONResponse({"error": "No valid YouTube override URLs provided."}, status_code=400)
+
+    enqueue_job(
+        "remap_batch",
+        f"Batch Remap ({len(valid_items)} tracks): {playlist_name or 'Playlist'}",
+        task_resolve_batch,
+        valid_items,
+        playlist_name,
+        playlist_url,
+        background_tasks=background_tasks
+    )
+    return JSONResponse({"status": "Enqueued", "count": len(valid_items)})
 
 @app.get("/queue")
 async def get_queue():
@@ -446,6 +542,15 @@ async def clear_history():
     global job_queue
     job_queue = [j for j in job_queue if j["status"] in ("queued", "running")]
     return JSONResponse({"status": "cleared"})
+
+@app.post("/clear-log")
+async def clear_log():
+    try:
+        with open(LOG_PATH, "w") as f:
+            f.write("=== LOG CLEARED ===\n")
+        return JSONResponse({"status": "cleared"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.get("/missing-tracks")
 async def get_missing_tracks():
