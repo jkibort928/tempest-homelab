@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.background import BackgroundTasks
@@ -14,6 +15,14 @@ SPOTIFY_DIR = f"{MUSIC_DIR}/Mainstream"
 PLAYLIST_DIR = f"{MUSIC_DIR}/Playlists"
 
 app = FastAPI()
+
+# Ensures all background tasks run strictly one at a time (FIFO)
+job_lock = asyncio.Lock()
+
+async def run_serialized_job(task_func, *args):
+    #Enforces single-worker execution to prevent rate limits and log scrambling.
+    async with job_lock:
+        await asyncio.to_thread(task_func, *args)
 
 def append_log(text: str):
     if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
@@ -227,19 +236,21 @@ async def main_page():
     </html>
     """
 
+# --- ROUTES ---
+
 @app.post("/download", response_class=HTMLResponse)
 async def start_download(url: str = Form(...), audio_url: str = Form(None), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(run_quick_download, url, audio_url)
+    background_tasks.add_task(run_serialized_job, run_quick_download, url, audio_url)
     return PlainTextResponse("Dispatched")
 
 @app.post("/import-playlist")
 async def import_playlist(name: str = Form(...), url: str = Form(...), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(task_import_playlist, name, url)
+    background_tasks.add_task(run_serialized_job, task_import_playlist, name, url)
     return PlainTextResponse("Enqueued")
 
 @app.post("/resolve-missing")
 async def resolve_missing(spotify_url: str = Form(...), youtube_url: str = Form(""), playlist_name: str = Form(""), playlist_url: str = Form(""), background_tasks: BackgroundTasks = None):
-    background_tasks.add_task(task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url)
+    background_tasks.add_task(run_serialized_job, task_resolve_single, spotify_url, youtube_url, playlist_name, playlist_url)
     return PlainTextResponse("Enqueued")
 
 @app.get("/missing-tracks")
