@@ -14,7 +14,11 @@ User=1000:1000
 
 Memory=1024M
 
-Volume=%h/quadlets/dockerfiles:/app:Z
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+Volume=%h/quadlets/dockerfiles/spotdl_server.py:/app/spotdl_server.py:z
+Volume=%h/quadlets/dockerfiles/music-spot-initPlaylist.py:/app/music-spot-initPlaylist.py:z
+Volume=%h/srv/@music/config/spotdl:/config:Z
 Volume=/mnt/storage/music:/music
 Volume=/etc/localtime:/etc/localtime:ro
 

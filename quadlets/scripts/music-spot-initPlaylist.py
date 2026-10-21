@@ -1,1 +1,1 @@
-/home/spoob/quadlets/dockerfiles/music-spot-initPlaylist.py
+../dockerfiles/music-spot-initPlaylist.py
