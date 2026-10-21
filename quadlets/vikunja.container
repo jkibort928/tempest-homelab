@@ -20,8 +20,8 @@ Environment=VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/files
 
 Memory=128M
 
-Volume=/home/spoob/srv/@vikunja/db:/app/vikunja/db:Z
-Volume=/home/spoob/srv/@vikunja/files:/app/vikunja/files:Z
+Volume=%h/srv/@vikunja/db:/app/vikunja/db:Z
+Volume=%h/srv/@vikunja/files:/app/vikunja/files:Z
 
 PublishPort=3456:3456
 

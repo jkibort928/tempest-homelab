@@ -8,7 +8,7 @@ Image=docker.io/searxng/searxng:latest
 
 # Bind to loopback only
 PublishPort=127.0.0.1:8888:8080
-Volume=/home/spoob/srv/@ai/searxng:/etc/searxng:Z
+Volume=%h/srv/@ai/searxng:/etc/searxng:Z
 
 [Install]
 WantedBy=default.target
