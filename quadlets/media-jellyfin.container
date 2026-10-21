@@ -12,7 +12,7 @@ AutoUpdate=registry
 UserNS=keep-id
 User=1000:1000
 
-Memory=1G
+Memory=2.5G
 
 # Render devices for Intel QuickSync hardware transcoding
 AddDevice=/dev/dri:/dev/dri
