@@ -15,7 +15,7 @@ User=1000:1000
 Memory=1024M
 
 Volume=%h/quadlets/dockerfiles:/app:Z
-Volume=/mnt/storage/music:/music:Z
+Volume=/mnt/storage/music:/music
 Volume=/etc/localtime:/etc/localtime:ro
 
 Network=media-internal.network
