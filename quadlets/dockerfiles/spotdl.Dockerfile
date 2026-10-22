@@ -3,10 +3,6 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir --upgrade spotdl yt-dlp fastapi uvicorn python-multipart
 
 ENV HOME=/config
-
-RUN mkdir -p /config/.spotdl && \
-    echo '{"audio_providers": ["youtube", "soundcloud"]}' > /config/.spotdl/config.json
-
 WORKDIR /app
 
 CMD ["uvicorn", "spotdl_server:app", "--host", "0.0.0.0", "--port", "8000"]
