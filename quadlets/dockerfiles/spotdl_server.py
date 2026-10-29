@@ -24,34 +24,43 @@ app = FastAPI()
 job_queue = []
 job_lock = asyncio.Lock()
 
-def fetch_spotify_playlist_title(url: str) -> str:
-    """Scrapes the playlist title from Spotify's Open Graph metadata tag."""
+def fetch_spotify_title(url: str) -> str:
+    """Scrapes Spotify track, album, or playlist metadata from Open Graph tags."""
+    if "spotify.com" not in url.lower():
+        return url
+
     try:
         req = urllib.request.Request(
             url, 
             headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         )
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=4) as response:
             page_html = response.read().decode('utf-8', errors='ignore')
             
-            # Match <meta property="og:title" content="...">
-            match = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', page_html, re.IGNORECASE)
-            if match:
-                raw_title = match.group(1)
-                clean_title = re.sub(r'\s*\|\s*Spotify$', '', raw_title, flags=re.IGNORECASE).strip()
-                return html_lib.unescape(clean_title)
+            title_match = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', page_html, re.IGNORECASE)
+            desc_match = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', page_html, re.IGNORECASE)
+            
+            if title_match:
+                title = html_lib.unescape(title_match.group(1)).strip()
+                title = re.sub(r'\s*\|\s*Spotify$', '', title, flags=re.IGNORECASE).strip()
+                
+                # Spotify track pages usually format og:description as "Artist · Song · Year"
+                if desc_match:
+                    desc = html_lib.unescape(desc_match.group(1)).strip()
+                    parts = [p.strip() for p in desc.split('·')]
+                    if len(parts) >= 2 and parts[0] and parts[0].lower() != title.lower():
+                        return f"{parts[0]} - {title}"
+                return title
 
-            # Fallback to <title>
             title_match = re.search(r'<title>(.*?)</title>', page_html, re.IGNORECASE)
             if title_match:
                 clean_title = re.sub(r'\s*\|\s*Spotify$', '', title_match.group(1), flags=re.IGNORECASE).strip()
                 return html_lib.unescape(clean_title)
 
     except Exception as e:
-        append_log(f"Auto-fetch playlist title failed: {e}")
+        append_log(f"Auto-fetch title failed for {url}: {e}")
 
-    playlist_id = url.split("playlist/")[-1].split("?")[0] if "playlist/" in url else "Import"
-    return f"Spotify Playlist ({playlist_id[:6]})"
+    return url
 
 def cleanup_queue():
     """Retains active jobs and trims history to the last 20 completed/canceled entries."""
@@ -482,7 +491,8 @@ async def start_download(url: str = Form(...), audio_url: str = Form(None), back
     if "spotify.com/playlist" in clean_url.lower():
         return JSONResponse({"error": "Quick Download is intended for single tracks/albums. Please use the 'Playlist Sync' tab for playlists."}, status_code=400)
 
-    enqueue_job("download", f"Single Download: {clean_url}", run_quick_download, clean_url, audio_url, background_tasks=background_tasks)
+    display_name = fetch_spotify_title(clean_url)
+    enqueue_job("download", f"Single Download: {display_name}", run_quick_download, clean_url, audio_url, background_tasks=background_tasks)
     return PlainTextResponse("Enqueued")
 
 @app.post("/import-playlist")
@@ -498,7 +508,7 @@ async def import_playlist(name: str = Form(""), url: str = Form(...), background
         return JSONResponse({"error": "Playlist URL must be a valid Spotify Playlist link. Track/album links are not allowed here."}, status_code=400)
 
     if not clean_name:
-        clean_name = fetch_spotify_playlist_title(clean_url)
+        clean_name = fetch_spotify_title(clean_url)
         append_log(f"Auto-detected playlist name: '{clean_name}'")
 
     enqueue_job("playlist", f"Playlist: {clean_name}", handle_playlist_sync, clean_name, clean_url, background_tasks=background_tasks)
