@@ -174,6 +174,18 @@ async def main_page():
                 label { display: block; font-size: 13px; color: #b3b3b3; margin-bottom: 5px; font-weight: bold; }
                 input[type="text"] { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 1px solid #333; background: #242424; color: white; box-sizing: border-box; margin-bottom: 12px; }
                 button.submit-btn { padding: 12px 24px; font-size: 15px; background: #1DB954; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; width: 100%; }
+
+                .yt-search-btn {
+                    background: #c4302b;
+                    color: white;
+                    text-decoration: none;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: bold;
+                    display: inline-block;
+                }
+                .yt-search-btn:hover { background: #e62117; }
                 
                 .playlist-card { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
                 .missing-item { background: #222; border-left: 4px solid #e74c3c; padding: 12px; border-radius: 4px; margin-bottom: 10px; }
@@ -409,9 +421,13 @@ async def main_page():
                                     <h4 style="color:#1DB954; margin-top:0;">${items.name} (${items.tracks.length} missing)</h4>`;
                             
                             items.tracks.forEach((t, trackIdx) => {
+                                const ytSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.track_info)}`;
                                 html += `
                                     <div class="missing-item">
-                                        <div class="missing-title">${t.track_info}</div>
+                                        <div class="missing-title" style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span>${t.track_info}</span>
+                                            <a href="${ytSearchUrl}" target="_blank" rel="noopener noreferrer" class="yt-search-btn">Search YouTube</a>
+                                        </div>
                                         <input type="text" class="yt-override-input" data-spotify="${t.spotify_url}" placeholder="Paste YouTube URL override (optional)..." style="margin:0;">
                                     </div>`;
                             });
