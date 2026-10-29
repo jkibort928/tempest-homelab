@@ -220,10 +220,10 @@ async def main_page():
 
                     <div id="tab-playlist" class="tab-content">
                         <form onsubmit="event.preventDefault(); submitForm('/import-playlist', this);">
-                            <label>Playlist Name <span style="color:#777; font-weight:normal;">(Optional - leave blank to auto-fetch title)</span></label>
-                            <input type="text" name="name" placeholder="Leave blank to auto-fetch title from Spotify">
                             <label>Spotify Playlist URL</label>
                             <input type="text" name="url" placeholder="https://open.spotify.com/playlist/..." required>
+                            <label>Playlist Name <span style="color:#777; font-weight:normal;">(Optional - leave blank to auto-fetch title)</span></label>
+                            <input type="text" name="name" placeholder="Leave blank to auto-fetch title from Spotify">
                             <button type="submit" class="submit-btn">Import & Generate .M3U</button>
                         </form>
                     </div>
