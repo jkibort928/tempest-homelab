@@ -57,7 +57,7 @@ def write_playlist_and_missing(name, playlist_id, found_tracks, missing_tracks):
         m3u.write("#EXTM3U\n")
         for track_path in found_tracks:
             m3u.write(f"{track_path}\n")
-    print(f"Wrote {len(found_tracks)} existing tracks to {m3u_path}")
+    print(f"Wrote {len(found_tracks)} existing tracks to {m3u_path}", flush=True)
 
     # 2. Write or clean up the Missing Tracks report
     if missing_tracks:
@@ -66,11 +66,11 @@ def write_playlist_and_missing(name, playlist_id, found_tracks, missing_tracks):
             miss.write(f"Format: Artist - Title|Spotify URL\n\n")
             for track in missing_tracks:
                 miss.write(f"{track}\n")
-        print(f"Wrote {len(missing_tracks)} missing tracks to {missing_path}")
+        print(f"Wrote {len(missing_tracks)} missing tracks to {missing_path}", flush=True)
     else:
         if os.path.exists(missing_path):
             os.remove(missing_path)
-            print(f"All tracks 100% matched! Removed missing report: {os.path.basename(missing_path)}")
+            print(f"All tracks 100% matched! Removed missing report: {os.path.basename(missing_path)}", flush=True)
 
 def build_playlist(name, url):
     os.makedirs(PLAYLIST_DIR, exist_ok=True)
@@ -89,7 +89,7 @@ def build_playlist(name, url):
             print("Failed to read spotdl metadata dump.")
             exit(1)
 
-    print(f"Auditing {len(track_data)} tracks...")
+    print(f"Auditing {len(track_data)} tracks...", flush=True)
         
     # Phase 1: Local Audit
     found_tracks, missing_tracks = check_local_files(track_data)
@@ -99,14 +99,23 @@ def build_playlist(name, url):
 
     # Phase 3: Auto-download missing tracks without touching existing files
     if missing_tracks:
-        print(f"\nAttempting automatic download for {len(missing_tracks)} missing tracks...")
+        print(f"\nAttempting automatic download for {len(missing_tracks)} missing tracks...", flush=True)
         urls_to_download = [track.split("|")[1] for track in missing_tracks]
         
         chunk_size = 15
+        total_chunks = (len(urls_to_download) - 1) // chunk_size + 1
         for i in range(0, len(urls_to_download), chunk_size):
             chunk = urls_to_download[i:i + chunk_size]
+            current_chunk = (i // chunk_size) + 1
+            print(f"\n[Chunk {current_chunk}/{total_chunks}] Processing {len(chunk)} tracks...", flush=True)
+            
             # Use skip-existing behavior, no force overwrite
-            cmd = ["spotdl", "download"] + chunk + ["--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}"]
+            cmd = [
+                "spotdl", "download", *chunk,
+                "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+                "--log-level", "INFO",
+                "--threads", "1"
+            ]
             subprocess.run(cmd)
         
         # Phase 4: Final Re-Audit to pick up newly downloaded tracks

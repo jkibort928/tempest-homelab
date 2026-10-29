@@ -60,6 +60,10 @@ def fetch_spotify_title(url: str) -> str:
     except Exception as e:
         append_log(f"Auto-fetch title failed for {url}: {e}")
 
+    if "playlist/" in url:
+        playlist_id = url.split("playlist/")[-1].split("?")[0]
+        return f"Spotify Playlist ({playlist_id[:6]})"
+
     return url
 
 def cleanup_queue():
@@ -137,7 +141,7 @@ def run_quick_download(job: dict, url: str, audio_url: str = None):
 
 def handle_playlist_sync(job: dict, name: str, url: str):
     """Task worker for initializing and syncing a Spotify playlist."""
-    cmd = ["python3", "/app/music-spot-initPlaylist.py", name, url]
+    cmd = ["python3", "-u", "/app/music-spot-initPlaylist.py", name, url]
     run_cmd_logged(cmd, f"Playlist Sync: {name}", job)
 
 def task_resolve_batch(job: dict, items: list, playlist_name: str, playlist_url: str):
@@ -151,11 +155,16 @@ def task_resolve_batch(job: dict, items: list, playlist_name: str, playlist_url:
             continue
 
         target = f"{youtube_url}|{spotify_url}"
-        cmd = ["spotdl", "download", target, "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}", "--overwrite", "force"]
+        cmd = [
+            "spotdl", "download", target,
+            "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+            "--overwrite", "force",
+            "--log-level", "INFO"
+        ]
         run_cmd_logged(cmd, f"Remap Track ({idx}/{total}): {spotify_url}", job)
 
     if playlist_name and playlist_url and job.get("status") != "canceled":
-        run_cmd_logged(["python3", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}", job)
+        run_cmd_logged(["python3", "-u", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}", job)
 
 # --- ROUTES ---
 @app.get("/", response_class=HTMLResponse)
