@@ -213,8 +213,8 @@ async def main_page():
                 }
                 .yt-search-btn {
                     background: transparent;
-                    color: #3b749e;
-                    border: 1px solid #284c66;
+                    color: #528cb5;
+                    border: 1px solid #365b75;
                     text-decoration: none;
                     padding: 6px 10px;
                     border-radius: 4px;
@@ -228,9 +228,9 @@ async def main_page():
                     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
                 }
                 .yt-search-btn:hover {
-                    background: rgba(59, 116, 158, 0.15);
-                    color: #5b99c7;
-                    border-color: #3c6d91;
+                    background: rgba(82, 140, 181, 0.15);
+                    color: #72a7ce;
+                    border-color: #4a7a9e;
                 }
                 
                 /* Fixed height terminal window */
