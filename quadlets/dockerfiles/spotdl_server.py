@@ -74,7 +74,7 @@ def cleanup_queue():
     job_queue = active + history
 
 def append_log(text: str):
-    if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
+    if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 5_000_000:
         with open(LOG_PATH, "w") as f:
             f.write("=== LOG ROTATED ===\n")
     with open(LOG_PATH, "a") as f:
@@ -631,6 +631,6 @@ async def get_missing_tracks():
 async def log_text():
     try:
         with open(LOG_PATH, "r") as f:
-            return "".join(deque(f, maxlen=100))
+            return "".join(deque(f, maxlen=500))
     except FileNotFoundError:
         return "No active or recent operations logged."
