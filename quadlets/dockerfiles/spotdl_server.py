@@ -11,6 +11,7 @@ import asyncio
 import signal
 import urllib.request
 import html as html_lib
+import time
 from collections import deque
 
 LOG_PATH = "/tmp/spotdl.log"
@@ -23,6 +24,23 @@ app = FastAPI()
 # --- QUEUE & PROCESS MANAGEMENT ---
 job_queue = []
 job_lock = asyncio.Lock()
+
+def check_recent_download(directory: str, start_time: float) -> bool:
+    """Returns True if the directory modified timestamp updated or any mp3 has mtime >= start_time."""
+    if not os.path.exists(directory):
+        return False
+
+    # A newly created or renamed file updates the directory's mtime immediately
+    if os.path.getmtime(directory) >= start_time:
+        return True
+
+    # Check for in-place overwrites
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if entry.name.endswith(".mp3") and entry.stat().st_mtime >= start_time:
+                return True
+
+    return False
 
 def fetch_spotify_title(url: str) -> str:
     """Scrapes Spotify track, album, or playlist metadata from Open Graph tags."""
@@ -70,7 +88,7 @@ def cleanup_queue():
     """Retains active jobs and trims history to the last 20 completed/canceled entries."""
     global job_queue
     active = [j for j in job_queue if j["status"] in ("queued", "running")]
-    history = [j for j in job_queue if j["status"] in ("completed", "canceled")][-20:]
+    history = [j for j in job_queue if j["status"] in ("completed", "canceled", "failed")][-20:]
     job_queue = active + history
 
 def append_log(text: str):
@@ -94,6 +112,9 @@ def run_cmd_logged(cmd, description: str, job: dict):
 
     if job.get("status") == "canceled":
         append_log(f"--- CANCELED/TERMINATED: {description} ---\n")
+    elif proc.returncode != 0:
+        append_log(f"--- FAILED (Exit Code {proc.returncode}): {description} ---\n")
+        job["status"] = "failed"
     else:
         append_log(f"--- FINISHED: {description} ---\n")
 
@@ -105,7 +126,12 @@ async def run_serialized_job(job_id: str, task_func, *args):
             return
 
         job["status"] = "running"
-        await asyncio.to_thread(task_func, job, *args)
+        try:
+            await asyncio.to_thread(task_func, job, *args)
+        except Exception as e:
+            append_log(f"Unhandled task error: {e}")
+            job["status"] = "failed"
+
         if job["status"] == "running":
             job["status"] = "completed"
         
@@ -131,13 +157,26 @@ def run_quick_download(job: dict, url: str, audio_url: str = None):
     cmd = [
         "spotdl", "download", target,
         "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+        "--log-level", "INFO",
         "--threads", "1",
         "--max-retries", "3"
     ]
     if audio_url:
         cmd.extend(["--overwrite", "force"])
 
+    os.makedirs(SPOTIFY_DIR, exist_ok=True)
+    start_time = time.time()
+
+    # Run spotdl
     run_cmd_logged(cmd, f"Single Track Download: {target}", job)
+
+    if job.get("status") in ("canceled", "failed"):
+        return
+
+    # Verify a file was actually created or modified
+    if not check_recent_download(SPOTIFY_DIR, start_time):
+        append_log(f"--- FAILED: No output audio file was created or updated for {target} ---")
+        job["status"] = "failed"
 
 def handle_playlist_sync(job: dict, name: str, url: str):
     """Task worker for initializing and syncing a Spotify playlist."""
@@ -213,7 +252,7 @@ async def main_page():
                 }
                 .yt-search-btn {
                     background: transparent;
-                    color: #528cb5;
+                    color: #3899c9;
                     border: 1px solid #365b75;
                     text-decoration: none;
                     padding: 6px 10px;
@@ -242,11 +281,13 @@ async def main_page():
                 .queue-item.queued { border-left: 4px solid #f39c12; }
                 .queue-item.completed { border-left: 4px solid #3498db; opacity: 0.7; }
                 .queue-item.canceled { border-left: 4px solid #e74c3c; opacity: 0.7; }
+                .queue-item.failed { border-left: 4px solid #e74c3c; }
                 .badge { font-size: 10px; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
                 .badge-running { background: #1DB954; color: #000; }
                 .badge-queued { background: #f39c12; color: #000; }
                 .badge-completed { background: #3498db; color: #fff; }
                 .badge-canceled { background: #e74c3c; color: #fff; }
+                .badge-failed { background: #e74c3c; color: #fff; }
                 .cancel-btn { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
                 .cancel-btn:hover { background: #c0392b; }
             </style>
