@@ -429,6 +429,10 @@ async def main_page():
                             return;
                         }
 
+                        items.forEach(item => {
+                            localStorage.removeItem('override_' + item.spotify_url);
+                        });
+
                         updateQueue();
                     } catch (e) {
                         alert('Connection error occurred.');
@@ -486,7 +490,7 @@ async def main_page():
                         container.innerHTML = html;
                     } catch (e) {}
                 }
-
+                
                 async function loadMissingTracks() {
                     const container = document.getElementById('missing-list');
                     try {
@@ -494,8 +498,13 @@ async def main_page():
                         const data = await res.json();
                         if (Object.keys(data).length === 0) {
                             container.innerHTML = '<p style="color:#1DB954;">All playlists 100% matched!</p>';
+                            Object.keys(localStorage).forEach(k => {
+                                if (k.startsWith('override_')) localStorage.removeItem(k);
+                            });
                             return;
                         }
+
+                        const activeSpotifyUrls = new Set();
                         let html = '';
                         let playlistIdx = 0;
                         for (const [file, items] of Object.entries(data)) {
@@ -504,15 +513,18 @@ async def main_page():
                                     <h4 style="color:#1DB954; margin-top:0;">${items.name} (${items.tracks.length} missing)</h4>`;
                             
                             items.tracks.forEach((t, trackIdx) => {
+                                activeSpotifyUrls.add(t.spotify_url);
                                 const ytSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.track_info)}`;
                                 const safeTitle = t.track_info.replace(/"/g, '&quot;');
+                                const savedVal = localStorage.getItem('override_' + t.spotify_url) || '';
+                                const safeVal = savedVal.replace(/"/g, '&quot;');
                                 html += `
                                     <div class="missing-item">
                                         <div class="missing-title">
                                             <span title="${safeTitle}">${t.track_info}</span>
                                             <a href="${ytSearchUrl}" target="_blank" rel="noopener noreferrer" class="yt-search-btn">Search YouTube</a>
                                         </div>
-                                        <input type="text" class="yt-override-input" data-spotify="${t.spotify_url}" placeholder="Paste YouTube URL override (optional)..." style="margin:0;">
+                                        <input type="text" class="yt-override-input" data-spotify="${t.spotify_url}" value="${safeVal}" placeholder="Paste YouTube URL override (optional)..." style="margin:0;">
                                     </div>`;
                             });
 
@@ -530,6 +542,16 @@ async def main_page():
                             playlistIdx++;
                         }
                         container.innerHTML = html;
+
+                        // Purge stored keys for tracks that are no longer missing
+                        Object.keys(localStorage).forEach(k => {
+                            if (k.startsWith('override_')) {
+                                const url = k.replace('override_', '');
+                                if (!activeSpotifyUrls.has(url)) {
+                                    localStorage.removeItem(k);
+                                }
+                            }
+                        });
                     } catch (e) {
                         container.innerHTML = '<p style="color:red;">Error loading missing reports.</p>';
                     }
@@ -547,7 +569,20 @@ async def main_page():
                         }
                     } catch (e) {}
                 }
-
+                
+                document.getElementById('missing-list').addEventListener('input', (e) => {
+                    if (e.target.classList.contains('yt-override-input')) {
+                        const spotifyUrl = e.target.getAttribute('data-spotify');
+                        const val = e.target.value.trim();
+                        const key = 'override_' + spotifyUrl;
+                        if (val) {
+                            localStorage.setItem(key, val);
+                        } else {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                });
+                
                 setInterval(() => {
                     updateLogs();
                     updateQueue();
