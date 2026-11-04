@@ -190,17 +190,27 @@ def task_resolve_batch(job: dict, items: list, playlist_name: str, playlist_url:
             break
         spotify_url = item.get("spotify_url", "").strip()
         youtube_url = item.get("youtube_url", "").strip()
-        if not spotify_url or not youtube_url:
+        if not spotify_url:
             continue
 
-        target = f"{youtube_url}|{spotify_url}"
-        cmd = [
-            "spotdl", "download", target,
-            "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
-            "--overwrite", "force",
-            "--log-level", "INFO"
-        ]
-        run_cmd_logged(cmd, f"Remap Track ({idx}/{total}): {spotify_url}", job)
+        if youtube_url:
+            target = f"{youtube_url}|{spotify_url}"
+            cmd = [
+                "spotdl", "download", target,
+                "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+                "--overwrite", "force",
+                "--log-level", "INFO"
+            ]
+            run_cmd_logged(cmd, f"Remap Track ({idx}/{total}): {spotify_url}", job)
+        else:
+            cmd = [
+                "spotdl", "download", spotify_url,
+                "--output", f"{SPOTIFY_DIR}/{{artist}} - {{title}}",
+                "--log-level", "INFO",
+                "--threads", "1",
+                "--max-retries", "3"
+            ]
+            run_cmd_logged(cmd, f"Retry Download ({idx}/{total}): {spotify_url}", job)
 
     if playlist_name and playlist_url and job.get("status") != "canceled":
         run_cmd_logged(["python3", "-u", "/app/music-spot-initPlaylist.py", playlist_name, playlist_url], f"Re-syncing Playlist: {playlist_name}", job)
@@ -382,12 +392,13 @@ async def main_page():
                     }
                 }
 
-                async function submitBatchResolution(btn, playlistIdx) {
+                async function submitBatchResolution(btn, playlistIdx, retryBlank = false) {
                     const card = btn.closest('.playlist-card');
                     const name = decodeURIComponent(btn.getAttribute('data-name'));
                     const url = decodeURIComponent(btn.getAttribute('data-url'));
                     const inputs = card.querySelectorAll('.yt-override-input');
                     const msg = document.getElementById('msg_' + playlistIdx);
+                    const buttons = card.querySelectorAll('.action-btn');
 
                     const items = [];
                     inputs.forEach(input => {
@@ -395,17 +406,23 @@ async def main_page():
                         const spotify = input.getAttribute('data-spotify');
                         if (yt) {
                             items.push({ spotify_url: spotify, youtube_url: yt });
+                        } else if (retryBlank) {
+                            items.push({ spotify_url: spotify, youtube_url: '' });
                         }
                     });
 
-                    btn.disabled = true;
-                    btn.style.background = '#555';
-                    btn.style.cursor = 'not-allowed';
-                    btn.innerText = 'Submitted to Queue';
+                    if (items.length === 0) {
+                        alert("No overrides entered. Fill in a link or click 'Run Overrides + Retry Missing'.");
+                        return;
+                    }
+
+                    buttons.forEach(b => {
+                        b.disabled = true;
+                        b.style.opacity = '0.5';
+                        b.style.cursor = 'not-allowed';
+                    });
                     msg.style.color = '#3498db';
-                    msg.innerText = items.length > 0 
-                        ? 'Overrides queued! Refresh unresolved list to re-enable button after processing.'
-                        : 'Playlist re-sync queued! Refresh unresolved list to re-enable button after processing.';
+                    msg.innerText = 'Queued! Refresh unresolved list once processing completes.';
 
                     try {
                         const res = await fetch('/resolve-batch', {
@@ -421,25 +438,30 @@ async def main_page():
                         if (!res.ok) {
                             const err = await res.json();
                             alert("Error: " + (err.error || "Failed to submit batch."));
-                            btn.disabled = false;
-                            btn.style.background = '#3498db';
-                            btn.style.cursor = 'pointer';
-                            btn.innerText = 'Confirm Overrides / Re-sync';
+                            buttons.forEach(b => {
+                                b.disabled = false;
+                                b.style.opacity = '1';
+                                b.style.cursor = 'pointer';
+                            });
                             msg.innerText = '';
                             return;
                         }
 
+                        // Remove submitted overrides from localStorage
                         items.forEach(item => {
-                            localStorage.removeItem('override_' + item.spotify_url);
+                            if (item.youtube_url) {
+                                localStorage.removeItem('override_' + item.spotify_url);
+                            }
                         });
 
                         updateQueue();
                     } catch (e) {
                         alert('Connection error occurred.');
-                        btn.disabled = false;
-                        btn.style.background = '#3498db';
-                        btn.style.cursor = 'pointer';
-                        btn.innerText = 'Confirm Overrides / Re-sync';
+                        buttons.forEach(b => {
+                            b.disabled = false;
+                            b.style.opacity = '1';
+                            b.style.cursor = 'pointer';
+                        });
                         msg.innerText = '';
                     }
                 }
@@ -529,12 +551,18 @@ async def main_page():
                             });
 
                             html += `
-                                    <div style="margin-top:15px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                                        <button onclick="submitBatchResolution(this, ${playlistIdx})" 
+                                    <div style="margin-top:15px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                        <button class="action-btn" onclick="submitBatchResolution(this, ${playlistIdx}, false)" 
                                             data-name="${encodeURIComponent(items.name)}" 
                                             data-url="${encodeURIComponent(items.spotify_playlist_url)}"
-                                            style="background:#3498db; color:white; border:none; padding:10px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:14px; transition: background 0.2s;">
-                                            Confirm Overrides / Re-sync
+                                            style="background:#3498db; color:white; border:none; padding:9px 16px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:13px; transition: background 0.2s;">
+                                            Run Overrides Only
+                                        </button>
+                                        <button class="action-btn" onclick="submitBatchResolution(this, ${playlistIdx}, true)" 
+                                            data-name="${encodeURIComponent(items.name)}" 
+                                            data-url="${encodeURIComponent(items.spotify_playlist_url)}"
+                                            style="background:#2ecc71; color:white; border:none; padding:9px 16px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:13px; transition: background 0.2s;">
+                                            Run Overrides + Retry Missing
                                         </button>
                                         <span id="msg_${playlistIdx}" style="font-size:13px; color:#aaa;"></span>
                                     </div>
@@ -635,13 +663,22 @@ async def resolve_batch(request: Request, background_tasks: BackgroundTasks = No
     for item in raw_items:
         s_url = item.get("spotify_url", "").strip()
         y_url = item.get("youtube_url", "").strip()
-        if s_url and y_url:
+        if s_url:
             valid_items.append({"spotify_url": s_url, "youtube_url": y_url})
 
     if not valid_items and not (playlist_name and playlist_url):
-        return JSONResponse({"error": "No valid override URLs or playlist details provided."}, status_code=400)
+        return JSONResponse({"error": "No valid tracks or playlist details provided."}, status_code=400)
 
-    job_title = f"Batch Remap ({len(valid_items)} tracks): {playlist_name or 'Playlist'}" if valid_items else f"Re-sync Playlist: {playlist_name or 'Playlist'}"
+    override_count = sum(1 for i in valid_items if i["youtube_url"])
+    retry_count = len(valid_items) - override_count
+    details = []
+    if override_count:
+        details.append(f"{override_count} overrides")
+    if retry_count:
+        details.append(f"{retry_count} retries")
+    tag = ", ".join(details) if details else "Re-sync"
+
+    job_title = f"Batch Sync ({tag}): {playlist_name or 'Playlist'}"
 
     enqueue_job(
         "remap_batch",
